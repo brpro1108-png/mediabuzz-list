@@ -177,6 +177,26 @@
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
 
+  /* Compact grid - smaller cards */
+  .yt-grid-compact {
+    @apply grid gap-3;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  /* List view */
+  .yt-grid-list {
+    @apply flex flex-col gap-2;
+  }
+
+  /* Compact card style */
+  .yt-card-compact {
+    @apply cursor-pointer transition-all duration-200 p-1;
+  }
+
+  .yt-card-compact:hover img {
+    @apply opacity-90;
+  }
+
   /* Scrollbar styling */
   ::-webkit-scrollbar {
     width: 8px;

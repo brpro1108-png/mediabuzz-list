@@ -17,11 +17,17 @@ interface MediaItem {
   description?: string;
   popularity?: number;
   genres?: string[];
+  releaseDate?: string;
 }
 
-// Genre IDs for anime detection (Animation genre)
+// Genre IDs
 const ANIMATION_GENRE_ID = 16;
 const DOCUMENTARY_GENRE_ID = 99;
+const KIDS_GENRE_ID = 10762; // Kids TV
+const FAMILY_GENRE_ID = 10751; // Family movies
+const COMEDY_GENRE_ID = 35; // Comedy
+const DRAMA_GENRE_ID = 18; // Drama
+const SOAP_GENRE_ID = 10766; // Soap / Telenovela
 
 async function fetchTMDB(endpoint: string, apiKey: string, params: Record<string, string> = {}): Promise<any> {
   const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
@@ -51,16 +57,19 @@ function transformMovie(item: any): MediaItem {
   
   let type: 'movie' | 'series' | 'anime' | 'documentary' = 'movie';
   if (isDocumentary) type = 'documentary';
-  else if (isAnimation) type = 'anime'; // Animation movies treated as anime
+  else if (isAnimation) type = 'anime';
+  
+  const releaseDate = item.release_date || item.first_air_date || '';
   
   return {
     id: `movie-${item.id}`,
     title: item.title || item.name || 'Sans titre',
-    year: (item.release_date || item.first_air_date || '').substring(0, 4),
+    year: releaseDate.substring(0, 4),
     poster: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : '/placeholder.svg',
     type,
     description: item.overview || '',
     popularity: item.popularity || 0,
+    releaseDate,
   };
 }
 
@@ -74,14 +83,17 @@ function transformSeries(item: any, forceType?: 'series' | 'anime' | 'documentar
     else if (isAnimation) type = 'anime';
   }
   
+  const releaseDate = item.first_air_date || item.release_date || '';
+  
   return {
     id: `series-${item.id}`,
     title: item.name || item.title || 'Sans titre',
-    year: (item.first_air_date || item.release_date || '').substring(0, 4),
+    year: releaseDate.substring(0, 4),
     poster: item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : '/placeholder.svg',
     type,
     description: item.overview || '',
     popularity: item.popularity || 0,
+    releaseDate,
   };
 }
 
@@ -113,41 +125,141 @@ serve(async (req) => {
 
     switch (category) {
       case 'movies': {
-        // Fetch popular movies
-        const data = await fetchTMDB('/movie/popular', apiKey, { page });
-        mediaItems = data.results
-          .filter((item: any) => !item.genre_ids?.includes(DOCUMENTARY_GENRE_ID))
+        // Fetch multiple movie lists in parallel for maximum content
+        const [popular, topRated, nowPlaying, upcoming] = await Promise.all([
+          fetchTMDB('/movie/popular', apiKey, { page }),
+          fetchTMDB('/movie/top_rated', apiKey, { page }),
+          fetchTMDB('/movie/now_playing', apiKey, { page }),
+          fetchTMDB('/movie/upcoming', apiKey, { page }),
+        ]);
+        
+        const allMovies = [
+          ...popular.results,
+          ...topRated.results,
+          ...nowPlaying.results,
+          ...upcoming.results,
+        ];
+        
+        // Remove duplicates and documentaries
+        const seen = new Set<number>();
+        mediaItems = allMovies
+          .filter((item: any) => {
+            if (seen.has(item.id) || item.genre_ids?.includes(DOCUMENTARY_GENRE_ID)) return false;
+            seen.add(item.id);
+            return true;
+          })
           .map((item: any) => transformMovie(item));
         break;
       }
       
       case 'series': {
-        // Fetch popular TV series (excluding animation and documentary)
-        const data = await fetchTMDB('/tv/popular', apiKey, { page });
-        mediaItems = data.results
-          .filter((item: any) => 
-            !item.genre_ids?.includes(ANIMATION_GENRE_ID) && 
-            !item.genre_ids?.includes(DOCUMENTARY_GENRE_ID)
-          )
+        // Fetch ALL types of TV series including sitcoms, telenovelas, kids shows
+        const [popular, topRated, onAir, kids, soaps, comedy, drama] = await Promise.all([
+          fetchTMDB('/tv/popular', apiKey, { page }),
+          fetchTMDB('/tv/top_rated', apiKey, { page }),
+          fetchTMDB('/tv/on_the_air', apiKey, { page }),
+          fetchTMDB('/discover/tv', apiKey, { 
+            page,
+            with_genres: String(KIDS_GENRE_ID),
+            sort_by: 'popularity.desc',
+          }),
+          fetchTMDB('/discover/tv', apiKey, { 
+            page,
+            with_genres: String(SOAP_GENRE_ID),
+            sort_by: 'popularity.desc',
+          }),
+          fetchTMDB('/discover/tv', apiKey, { 
+            page,
+            with_genres: String(COMEDY_GENRE_ID),
+            sort_by: 'popularity.desc',
+          }),
+          fetchTMDB('/discover/tv', apiKey, { 
+            page,
+            with_genres: String(DRAMA_GENRE_ID),
+            sort_by: 'popularity.desc',
+          }),
+        ]);
+        
+        const allSeries = [
+          ...popular.results,
+          ...topRated.results,
+          ...onAir.results,
+          ...kids.results,
+          ...soaps.results,
+          ...comedy.results,
+          ...drama.results,
+        ];
+        
+        // Remove duplicates, animation and documentary
+        const seen = new Set<number>();
+        mediaItems = allSeries
+          .filter((item: any) => {
+            if (seen.has(item.id)) return false;
+            if (item.genre_ids?.includes(ANIMATION_GENRE_ID)) return false;
+            if (item.genre_ids?.includes(DOCUMENTARY_GENRE_ID)) return false;
+            seen.add(item.id);
+            return true;
+          })
           .map((item: any) => transformSeries(item, 'series'));
         break;
       }
       
       case 'animes': {
-        // Fetch animation TV series (Japanese origin preferred)
-        const data = await fetchTMDB('/discover/tv', apiKey, { 
-          page,
-          with_genres: String(ANIMATION_GENRE_ID),
-          sort_by: 'popularity.desc',
+        // Fetch animation TV series from multiple sources
+        const [discover, popular, topRated] = await Promise.all([
+          fetchTMDB('/discover/tv', apiKey, { 
+            page,
+            with_genres: String(ANIMATION_GENRE_ID),
+            sort_by: 'popularity.desc',
+          }),
+          fetchTMDB('/discover/tv', apiKey, { 
+            page,
+            with_genres: String(ANIMATION_GENRE_ID),
+            sort_by: 'vote_average.desc',
+            'vote_count.gte': '100',
+          }),
+          fetchTMDB('/discover/movie', apiKey, { 
+            page,
+            with_genres: String(ANIMATION_GENRE_ID),
+            sort_by: 'popularity.desc',
+          }),
+        ]);
+        
+        const allAnimes = [
+          ...discover.results.map((item: any) => transformSeries(item, 'anime')),
+          ...popular.results.map((item: any) => transformSeries(item, 'anime')),
+          ...topRated.results.map((item: any) => {
+            const transformed = transformMovie(item);
+            transformed.type = 'anime';
+            return transformed;
+          }),
+        ];
+        
+        // Remove duplicates
+        const seen = new Set<string>();
+        mediaItems = allAnimes.filter((item) => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
         });
-        mediaItems = data.results.map((item: any) => transformSeries(item, 'anime'));
         break;
       }
       
       case 'docs': {
         // Fetch documentary TV series and movies
-        const [tvData, movieData] = await Promise.all([
+        const [tvDiscover, tvTopRated, movieDiscover, movieTopRated] = await Promise.all([
           fetchTMDB('/discover/tv', apiKey, { 
+            page,
+            with_genres: String(DOCUMENTARY_GENRE_ID),
+            sort_by: 'popularity.desc',
+          }),
+          fetchTMDB('/discover/tv', apiKey, { 
+            page,
+            with_genres: String(DOCUMENTARY_GENRE_ID),
+            sort_by: 'vote_average.desc',
+            'vote_count.gte': '50',
+          }),
+          fetchTMDB('/discover/movie', apiKey, { 
             page,
             with_genres: String(DOCUMENTARY_GENRE_ID),
             sort_by: 'popularity.desc',
@@ -155,19 +267,35 @@ serve(async (req) => {
           fetchTMDB('/discover/movie', apiKey, { 
             page,
             with_genres: String(DOCUMENTARY_GENRE_ID),
-            sort_by: 'popularity.desc',
+            sort_by: 'vote_average.desc',
+            'vote_count.gte': '50',
           }),
         ]);
         
-        const tvDocs = tvData.results.map((item: any) => transformSeries(item, 'documentary'));
-        const movieDocs = movieData.results.map((item: any) => {
-          const transformed = transformMovie(item);
-          transformed.type = 'documentary';
-          return transformed;
-        });
+        const allDocs = [
+          ...tvDiscover.results.map((item: any) => transformSeries(item, 'documentary')),
+          ...tvTopRated.results.map((item: any) => transformSeries(item, 'documentary')),
+          ...movieDiscover.results.map((item: any) => {
+            const transformed = transformMovie(item);
+            transformed.type = 'documentary';
+            return transformed;
+          }),
+          ...movieTopRated.results.map((item: any) => {
+            const transformed = transformMovie(item);
+            transformed.type = 'documentary';
+            return transformed;
+          }),
+        ];
         
-        // Interleave TV and movie documentaries
-        mediaItems = [...tvDocs, ...movieDocs].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+        // Remove duplicates and sort by popularity
+        const seen = new Set<string>();
+        mediaItems = allDocs
+          .filter((item) => {
+            if (seen.has(item.id)) return false;
+            seen.add(item.id);
+            return true;
+          })
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
         break;
       }
       
@@ -175,7 +303,7 @@ serve(async (req) => {
         mediaItems = [];
     }
 
-    console.log(`Found ${mediaItems.length} items for ${category}`);
+    console.log(`Found ${mediaItems.length} items for ${category} (page ${page})`);
 
     return new Response(JSON.stringify({ 
       success: true, 

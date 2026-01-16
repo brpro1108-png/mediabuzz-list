@@ -7,6 +7,7 @@ export interface MediaItem {
   description?: string;
   popularity?: number;
   genres?: string[];
+  releaseDate?: string;
 }
 
 export type Category = 'films' | 'series';

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { YTHeader } from '@/components/YTHeader';
 import { YTSidebar } from '@/components/YTSidebar';
-import { YTChips } from '@/components/YTChips';
+import { YTChips, SortFilter, UploadFilter, ViewMode } from '@/components/YTChips';
 import { YTGrid } from '@/components/YTGrid';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
 import { useDarkiWorldMedia } from '@/hooks/useDarkiWorldMedia';
@@ -13,6 +13,9 @@ const Index = () => {
   const [activeCategory, setActiveCategory] = useState<Category>('films');
   const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortFilter, setSortFilter] = useState<SortFilter>(null);
+  const [uploadFilter, setUploadFilter] = useState<UploadFilter>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('normal');
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const { toggleUploaded, isUploaded, uploadedIds } = useUploadedMedia();
@@ -39,8 +42,26 @@ const Index = () => {
       result = result.filter((item) => item.type === activeTypeFilter);
     }
 
+    // Upload filter
+    if (uploadFilter === 'uploaded') {
+      result = result.filter((item) => uploadedIds.has(item.id));
+    } else if (uploadFilter === 'not_uploaded') {
+      result = result.filter((item) => !uploadedIds.has(item.id));
+    }
+
+    // Sort filter
+    if (sortFilter === 'recent') {
+      result = result.sort((a, b) => {
+        const dateA = a.releaseDate || a.year || '';
+        const dateB = b.releaseDate || b.year || '';
+        return dateB.localeCompare(dateA);
+      });
+    } else if (sortFilter === 'popular') {
+      result = result.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+    }
+
     return result;
-  }, [currentItems, searchQuery, activeTypeFilter, activeCategory]);
+  }, [currentItems, searchQuery, activeTypeFilter, activeCategory, uploadFilter, sortFilter, uploadedIds]);
 
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
@@ -96,6 +117,12 @@ const Index = () => {
               onCategoryChange={setActiveCategory}
               activeTypeFilter={activeTypeFilter}
               onTypeFilterChange={setActiveTypeFilter}
+              sortFilter={sortFilter}
+              onSortFilterChange={setSortFilter}
+              uploadFilter={uploadFilter}
+              onUploadFilterChange={setUploadFilter}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
             />
             
             {/* Refresh button */}
@@ -127,7 +154,8 @@ const Index = () => {
               <YTGrid 
                 items={filteredItems} 
                 isUploaded={isUploaded} 
-                onToggleUpload={toggleUploaded} 
+                onToggleUpload={toggleUploaded}
+                viewMode={viewMode}
               />
               
               {/* Load more trigger */}

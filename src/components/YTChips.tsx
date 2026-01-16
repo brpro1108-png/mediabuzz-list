@@ -1,11 +1,21 @@
-import { Film, Tv, Sparkles, FileText } from 'lucide-react';
+import { Film, Tv, Sparkles, FileText, Clock, TrendingUp, Check, X, Grid3X3, List, LayoutGrid } from 'lucide-react';
 import { Category } from '@/types/media';
+
+export type SortFilter = 'recent' | 'popular' | null;
+export type UploadFilter = 'uploaded' | 'not_uploaded' | null;
+export type ViewMode = 'normal' | 'compact' | 'list';
 
 interface YTChipsProps {
   activeCategory: Category;
   onCategoryChange: (category: Category) => void;
   activeTypeFilter: string | null;
   onTypeFilterChange: (type: string | null) => void;
+  sortFilter: SortFilter;
+  onSortFilterChange: (filter: SortFilter) => void;
+  uploadFilter: UploadFilter;
+  onUploadFilterChange: (filter: UploadFilter) => void;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
 }
 
 export const YTChips = ({ 
@@ -13,6 +23,12 @@ export const YTChips = ({
   onCategoryChange,
   activeTypeFilter,
   onTypeFilterChange,
+  sortFilter,
+  onSortFilterChange,
+  uploadFilter,
+  onUploadFilterChange,
+  viewMode,
+  onViewModeChange,
 }: YTChipsProps) => {
   const categoryChips = [
     { id: 'films' as Category, label: 'Films' },
@@ -27,7 +43,7 @@ export const YTChips = ({
   ];
 
   return (
-    <div className="flex items-center gap-3 overflow-x-auto pb-3 scrollbar-hide">
+    <div className="flex items-center gap-3 overflow-x-auto pb-3 scrollbar-hide flex-1">
       {/* Main category chips */}
       {categoryChips.map((chip) => (
         <button
@@ -57,11 +73,68 @@ export const YTChips = ({
         </button>
       ))}
 
-      {/* Additional filter chips */}
-      <button className="chip whitespace-nowrap">Récents</button>
-      <button className="chip whitespace-nowrap">Populaires</button>
-      <button className="chip whitespace-nowrap">Uploadés</button>
-      <button className="chip whitespace-nowrap">Non uploadés</button>
+      {activeCategory === 'series' && <div className="h-8 w-px bg-border flex-shrink-0" />}
+
+      {/* Sort filter chips */}
+      <button 
+        onClick={() => onSortFilterChange(sortFilter === 'recent' ? null : 'recent')}
+        className={`chip whitespace-nowrap flex items-center gap-2 ${sortFilter === 'recent' ? 'chip-active' : ''}`}
+      >
+        <Clock className="w-4 h-4" />
+        Récents
+      </button>
+      <button 
+        onClick={() => onSortFilterChange(sortFilter === 'popular' ? null : 'popular')}
+        className={`chip whitespace-nowrap flex items-center gap-2 ${sortFilter === 'popular' ? 'chip-active' : ''}`}
+      >
+        <TrendingUp className="w-4 h-4" />
+        Populaires
+      </button>
+
+      {/* Separator */}
+      <div className="h-8 w-px bg-border flex-shrink-0" />
+
+      {/* Upload filter chips */}
+      <button 
+        onClick={() => onUploadFilterChange(uploadFilter === 'uploaded' ? null : 'uploaded')}
+        className={`chip whitespace-nowrap flex items-center gap-2 ${uploadFilter === 'uploaded' ? 'chip-active' : ''}`}
+      >
+        <Check className="w-4 h-4" />
+        Uploadés
+      </button>
+      <button 
+        onClick={() => onUploadFilterChange(uploadFilter === 'not_uploaded' ? null : 'not_uploaded')}
+        className={`chip whitespace-nowrap flex items-center gap-2 ${uploadFilter === 'not_uploaded' ? 'chip-active' : ''}`}
+      >
+        <X className="w-4 h-4" />
+        Non uploadés
+      </button>
+
+      {/* Separator */}
+      <div className="h-8 w-px bg-border flex-shrink-0" />
+
+      {/* View mode chips */}
+      <button 
+        onClick={() => onViewModeChange('normal')}
+        className={`chip whitespace-nowrap flex items-center gap-2 ${viewMode === 'normal' ? 'chip-active' : ''}`}
+        title="Vue normale"
+      >
+        <LayoutGrid className="w-4 h-4" />
+      </button>
+      <button 
+        onClick={() => onViewModeChange('compact')}
+        className={`chip whitespace-nowrap flex items-center gap-2 ${viewMode === 'compact' ? 'chip-active' : ''}`}
+        title="Vue compacte"
+      >
+        <Grid3X3 className="w-4 h-4" />
+      </button>
+      <button 
+        onClick={() => onViewModeChange('list')}
+        className={`chip whitespace-nowrap flex items-center gap-2 ${viewMode === 'list' ? 'chip-active' : ''}`}
+        title="Vue liste"
+      >
+        <List className="w-4 h-4" />
+      </button>
     </div>
   );
 };
