@@ -160,10 +160,10 @@ serve(async (req) => {
       console.error('FIRECRAWL_API_KEY not configured');
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'Firecrawl not configured',
+        error: 'Service temporarily unavailable',
         data: [],
       }), {
-        status: 500,
+        status: 503,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -226,7 +226,7 @@ serve(async (req) => {
     console.error('Error:', errorMessage);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: errorMessage,
+      error: 'An error occurred processing your request',
       data: [],
     }), {
       status: 500,
