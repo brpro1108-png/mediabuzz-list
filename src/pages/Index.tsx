@@ -105,6 +105,8 @@ const Index = () => {
         onCategoryChange={setActiveCategory}
         uploadedCount={uploadedInCurrentCategory}
         totalCount={currentItems.length}
+        uploadFilter={uploadFilter}
+        onUploadFilterChange={setUploadFilter}
       />
 
       {/* Main content */}
@@ -119,8 +121,6 @@ const Index = () => {
               onTypeFilterChange={setActiveTypeFilter}
               sortFilter={sortFilter}
               onSortFilterChange={setSortFilter}
-              uploadFilter={uploadFilter}
-              onUploadFilterChange={setUploadFilter}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
             />
@@ -138,9 +138,15 @@ const Index = () => {
 
           {/* Stats bar */}
           <div className="flex items-center gap-6 mb-6 text-sm text-muted-foreground">
-            <span>{filteredItems.length} médias</span>
-            <span className="text-uploaded">{uploadedInCurrentCategory} uploadés</span>
-            <span>{currentItems.length - uploadedInCurrentCategory} restants</span>
+            <span className="font-medium text-foreground">{filteredItems.length.toLocaleString()} médias</span>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-uploaded" />
+              <span>{uploadedInCurrentCategory.toLocaleString()} uploadés</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-destructive" />
+              <span>{(currentItems.length - uploadedInCurrentCategory).toLocaleString()} restants</span>
+            </div>
           </div>
 
           {/* Loading state */}
@@ -168,7 +174,7 @@ const Index = () => {
                 )}
                 {!hasMore && filteredItems.length > 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Fin du catalogue • {filteredItems.length} médias affichés
+                    Fin du catalogue • {filteredItems.length.toLocaleString()} médias affichés
                   </p>
                 )}
               </div>
