@@ -59,16 +59,25 @@ export const useUploadedMedia = () => {
 
   // Immediate sync to database when uploadedIds changes
   useEffect(() => {
+    // Clear any pending sync on cleanup
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!user || !isInitialLoadDone) return;
     
     // Check if there's actually a change
     const currentIds = [...uploadedIds];
     const previousIds = [...previousIdsRef.current];
     
-    if (currentIds.length === previousIds.length && 
-        currentIds.every(id => previousIdsRef.current.has(id))) {
-      return; // No change
-    }
+    const hasChange = currentIds.length !== previousIds.length || 
+        !currentIds.every(id => previousIdsRef.current.has(id));
+    
+    if (!hasChange) return;
 
     // Update localStorage immediately
     localStorage.setItem(STORAGE_KEY, JSON.stringify(currentIds));
@@ -79,6 +88,7 @@ export const useUploadedMedia = () => {
     }
 
     // Sync to database with minimal delay (debounce 100ms)
+    const userId = user.id;
     syncTimeoutRef.current = setTimeout(async () => {
       setIsSyncing(true);
       try {
@@ -88,7 +98,7 @@ export const useUploadedMedia = () => {
         // Insert new entries
         if (toInsert.length > 0) {
           const insertData = toInsert.map(media_id => ({
-            user_id: user.id,
+            user_id: userId,
             media_id,
           }));
           
@@ -106,7 +116,7 @@ export const useUploadedMedia = () => {
           const { error: deleteError } = await supabase
             .from('uploaded_media')
             .delete()
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .in('media_id', toDelete);
 
           if (deleteError) {
@@ -123,12 +133,6 @@ export const useUploadedMedia = () => {
         setIsSyncing(false);
       }
     }, 100);
-
-    return () => {
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
-    };
   }, [user, uploadedIds, isInitialLoadDone]);
 
   const toggleUploaded = useCallback((id: string) => {
