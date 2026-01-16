@@ -4,15 +4,16 @@ import { AppSidebar, UploadFilter, SortMode } from '@/components/AppSidebar';
 import { MediaList } from '@/components/MediaList';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
 import { useTMDBMedia } from '@/hooks/useTMDBMedia';
-import { Category } from '@/types/media';
+import { Category, MediaItem } from '@/types/media';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState<Category>('films');
   const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [uploadFilter, setUploadFilter] = useState<UploadFilter>('all');
   const [sortMode, setSortMode] = useState<SortMode>('default');
+  const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const { toggleUploaded, isUploaded, uploadedIds } = useUploadedMedia();
@@ -27,8 +28,32 @@ const Index = () => {
     refetch, 
     loadMore, 
     hasMore,
+    searchTMDB,
     lastUpdate
   } = useTMDBMedia();
+
+  // Handle search item selection
+  const handleSelectSearchItem = useCallback((item: MediaItem) => {
+    toggleUploaded(item.id);
+    toast.success(
+      isUploaded(item.id) 
+        ? `${item.title} retiré des uploads` 
+        : `${item.title} marqué comme uploadé`
+    );
+  }, [toggleUploaded, isUploaded]);
+
+  // Handle genre toggle
+  const handleGenreToggle = useCallback((genreId: number) => {
+    setSelectedGenres(prev => 
+      prev.includes(genreId) 
+        ? prev.filter(id => id !== genreId)
+        : [...prev, genreId]
+    );
+  }, []);
+
+  const handleClearGenres = useCallback(() => {
+    setSelectedGenres([]);
+  }, []);
 
   // Determine current items based on category and type filter
   const currentItems = useMemo(() => {
@@ -54,15 +79,10 @@ const Index = () => {
   const filteredItems = useMemo(() => {
     let result = [...currentItems];
 
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (item) =>
-          item.title.toLowerCase().includes(query) ||
-          item.year.includes(query) ||
-          item.description?.toLowerCase().includes(query) ||
-          item.genreNames?.some(g => g.toLowerCase().includes(query))
+    // Genre filter
+    if (selectedGenres.length > 0) {
+      result = result.filter(item => 
+        item.genres && item.genres.some(g => selectedGenres.includes(g))
       );
     }
 
@@ -85,7 +105,7 @@ const Index = () => {
     }
 
     return result;
-  }, [currentItems, searchQuery, uploadFilter, sortMode, uploadedIds]);
+  }, [currentItems, selectedGenres, uploadFilter, sortMode, uploadedIds]);
 
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
@@ -111,12 +131,14 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearch={searchTMDB}
+        onSelectSearchItem={handleSelectSearchItem}
         onRefresh={refetch}
         isLoading={isLoading}
         totalMedia={totalMedia}
         uploadedCount={totalUploaded}
+        isUploaded={isUploaded}
+        activeCategory={activeCategory}
       />
 
       <AppSidebar
@@ -129,6 +151,9 @@ const Index = () => {
         sortMode={sortMode}
         onSortModeChange={setSortMode}
         stats={stats}
+        selectedGenres={selectedGenres}
+        onGenreToggle={handleGenreToggle}
+        onClearGenres={handleClearGenres}
       />
 
       <main className="app-main">
@@ -139,6 +164,11 @@ const Index = () => {
               <span className="text-sm text-muted-foreground">
                 {filteredItems.length.toLocaleString()} résultats
               </span>
+              {selectedGenres.length > 0 && (
+                <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">
+                  {selectedGenres.length} genre{selectedGenres.length > 1 ? 's' : ''} sélectionné{selectedGenres.length > 1 ? 's' : ''}
+                </span>
+              )}
             </div>
             {lastUpdate && (
               <span className="text-xs text-muted-foreground">

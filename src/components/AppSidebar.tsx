@@ -1,5 +1,6 @@
 import { Film, Tv, CheckCircle2, XCircle, Sparkles, FileText, TrendingUp, Clock } from 'lucide-react';
 import { Category } from '@/types/media';
+import { GenreFilter } from './GenreFilter';
 
 export type UploadFilter = 'all' | 'uploaded' | 'not_uploaded';
 export type SortMode = 'default' | 'recent' | 'popular';
@@ -19,6 +20,9 @@ interface AppSidebarProps {
     uploadedFilms: number;
     uploadedSeries: number;
   };
+  selectedGenres: number[];
+  onGenreToggle: (genreId: number) => void;
+  onClearGenres: () => void;
 }
 
 export const AppSidebar = ({
@@ -31,6 +35,9 @@ export const AppSidebar = ({
   sortMode,
   onSortModeChange,
   stats,
+  selectedGenres,
+  onGenreToggle,
+  onClearGenres,
 }: AppSidebarProps) => {
   const categories = [
     { 
@@ -87,6 +94,7 @@ export const AppSidebar = ({
               onClick={() => {
                 onCategoryChange(cat.id);
                 onTypeFilterChange(null);
+                onClearGenres();
               }}
               className={`sidebar-item ${activeCategory === cat.id ? 'sidebar-item-active' : ''}`}
             >
@@ -120,6 +128,14 @@ export const AppSidebar = ({
             </div>
           </div>
         )}
+
+        {/* Genre filter */}
+        <GenreFilter
+          activeCategory={activeCategory}
+          selectedGenres={selectedGenres}
+          onGenreToggle={onGenreToggle}
+          onClearGenres={onClearGenres}
+        />
 
         {/* Type filter for series */}
         {activeCategory === 'series' && (

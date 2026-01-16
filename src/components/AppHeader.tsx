@@ -1,21 +1,27 @@
-import { Search, RefreshCw, Film } from 'lucide-react';
+import { RefreshCw, Film } from 'lucide-react';
+import { SearchDropdown } from './SearchDropdown';
+import { MediaItem, Category } from '@/types/media';
 
 interface AppHeaderProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
+  onSearch: (query: string, category: 'movies' | 'series') => Promise<MediaItem[]>;
+  onSelectSearchItem: (item: MediaItem) => void;
   onRefresh: () => void;
   isLoading: boolean;
   totalMedia: number;
   uploadedCount: number;
+  isUploaded: (id: string) => boolean;
+  activeCategory: Category;
 }
 
 export const AppHeader = ({ 
-  searchQuery, 
-  onSearchChange, 
+  onSearch,
+  onSelectSearchItem,
   onRefresh, 
   isLoading,
   totalMedia,
   uploadedCount,
+  isUploaded,
+  activeCategory,
 }: AppHeaderProps) => {
   const progress = totalMedia > 0 ? (uploadedCount / totalMedia) * 100 : 0;
 
@@ -32,19 +38,13 @@ export const AppHeader = ({
         </div>
       </div>
 
-      {/* Search */}
-      <div className="flex-1 max-w-xl mx-8">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Rechercher un film, une série..."
-            className="search-input pl-11"
-          />
-        </div>
-      </div>
+      {/* Search dropdown with real-time TMDB search */}
+      <SearchDropdown
+        onSearch={onSearch}
+        onSelectItem={onSelectSearchItem}
+        isUploaded={isUploaded}
+        activeCategory={activeCategory}
+      />
 
       {/* Progress + Actions */}
       <div className="flex items-center gap-6">
