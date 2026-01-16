@@ -9,6 +9,16 @@ export interface MediaItem {
   genres?: number[];
   genreNames?: string[];
   releaseDate?: string;
+  collectionId?: number;
+  collectionName?: string;
+}
+
+export interface MediaCollection {
+  id: number;
+  name: string;
+  poster?: string;
+  items: MediaItem[];
+  isFullyUploaded: boolean;
 }
 
 export type Category = 'films' | 'series';
