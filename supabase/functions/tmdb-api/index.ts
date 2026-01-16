@@ -242,9 +242,10 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get("TMDB_API_KEY");
     if (!apiKey) {
+      console.error("TMDB API key not configured");
       return new Response(
-        JSON.stringify({ success: false, error: "TMDB API key not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+        JSON.stringify({ success: false, error: "Service temporarily unavailable" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 503 }
       );
     }
 
@@ -1014,7 +1015,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error("TMDB API Error:", errorMessage);
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: "An error occurred processing your request" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
