@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
@@ -9,23 +9,16 @@ export const useUploadedMedia = () => {
   const [uploadedIds, setUploadedIds] = useState<Set<string>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isInitialLoadDone, setIsInitialLoadDone] = useState(false);
+  const previousIdsRef = useRef<Set<string>>(new Set());
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load from localStorage immediately
+  // Load from database FIRST when user is logged in
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setUploadedIds(new Set(parsed));
-      } catch (e) {
-        console.error('Failed to parse uploaded media from localStorage', e);
-      }
+    if (!user) {
+      setIsInitialLoadDone(true);
+      return;
     }
-  }, []);
-
-  // Load from database when user logs in
-  useEffect(() => {
-    if (!user) return;
 
     const loadFromDatabase = async () => {
       try {
@@ -36,32 +29,107 @@ export const useUploadedMedia = () => {
 
         if (error) {
           console.error('Error loading uploads from database:', error);
-          return;
-        }
-
-        if (data && data.length > 0) {
+          // Fallback to localStorage
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              setUploadedIds(new Set(parsed));
+              previousIdsRef.current = new Set(parsed);
+            } catch (e) {
+              console.error('Failed to parse localStorage', e);
+            }
+          }
+        } else if (data) {
           const dbIds = new Set(data.map(item => item.media_id));
-          // Merge with localStorage
-          setUploadedIds(prev => {
-            const merged = new Set([...prev, ...dbIds]);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify([...merged]));
-            return merged;
-          });
+          setUploadedIds(dbIds);
+          previousIdsRef.current = new Set(dbIds);
+          // Update localStorage to match database
+          localStorage.setItem(STORAGE_KEY, JSON.stringify([...dbIds]));
         }
       } catch (e) {
         console.error('Failed to load from database:', e);
+      } finally {
+        setIsInitialLoadDone(true);
       }
     };
 
     loadFromDatabase();
   }, [user]);
 
-  // Save to localStorage on change
+  // Immediate sync to database when uploadedIds changes
   useEffect(() => {
-    if (uploadedIds.size > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...uploadedIds]));
+    if (!user || !isInitialLoadDone) return;
+    
+    // Check if there's actually a change
+    const currentIds = [...uploadedIds];
+    const previousIds = [...previousIdsRef.current];
+    
+    if (currentIds.length === previousIds.length && 
+        currentIds.every(id => previousIdsRef.current.has(id))) {
+      return; // No change
     }
-  }, [uploadedIds]);
+
+    // Update localStorage immediately
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(currentIds));
+
+    // Clear any pending sync
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+
+    // Sync to database with minimal delay (debounce 100ms)
+    syncTimeoutRef.current = setTimeout(async () => {
+      setIsSyncing(true);
+      try {
+        const toInsert = currentIds.filter(id => !previousIdsRef.current.has(id));
+        const toDelete = previousIds.filter(id => !uploadedIds.has(id));
+
+        // Insert new entries
+        if (toInsert.length > 0) {
+          const insertData = toInsert.map(media_id => ({
+            user_id: user.id,
+            media_id,
+          }));
+          
+          const { error: insertError } = await supabase
+            .from('uploaded_media')
+            .insert(insertData);
+
+          if (insertError) {
+            console.error('Insert error:', insertError);
+          }
+        }
+
+        // Delete removed entries
+        if (toDelete.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('uploaded_media')
+            .delete()
+            .eq('user_id', user.id)
+            .in('media_id', toDelete);
+
+          if (deleteError) {
+            console.error('Delete error:', deleteError);
+          }
+        }
+
+        // Update reference after successful sync
+        previousIdsRef.current = new Set(currentIds);
+        setLastSaved(new Date());
+      } catch (e) {
+        console.error('Auto-sync error:', e);
+      } finally {
+        setIsSyncing(false);
+      }
+    }, 100);
+
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, [user, uploadedIds, isInitialLoadDone]);
 
   const toggleUploaded = useCallback((id: string) => {
     setUploadedIds(prev => {
@@ -79,7 +147,7 @@ export const useUploadedMedia = () => {
 
   const uploadedCount = uploadedIds.size;
 
-  // Sync to database
+  // Manual sync (force full sync)
   const syncToDatabase = useCallback(async () => {
     if (!user) {
       console.error('Must be logged in to sync');
@@ -111,7 +179,6 @@ export const useUploadedMedia = () => {
           media_id,
         }));
 
-        // Insert in batches of 100
         for (let i = 0; i < insertData.length; i += 100) {
           const batch = insertData.slice(i, i + 100);
           const { error: insertError } = await supabase
@@ -137,6 +204,7 @@ export const useUploadedMedia = () => {
         }
       }
 
+      previousIdsRef.current = new Set(currentIds);
       setLastSaved(new Date());
       return true;
     } catch (e) {
@@ -147,19 +215,6 @@ export const useUploadedMedia = () => {
     }
   }, [user, uploadedIds]);
 
-  // Auto-sync every 2 minutes if user is logged in
-  useEffect(() => {
-    if (!user) return;
-
-    const interval = setInterval(() => {
-      if (uploadedIds.size > 0) {
-        syncToDatabase();
-      }
-    }, 2 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [user, uploadedIds, syncToDatabase]);
-
   return { 
     uploadedIds, 
     toggleUploaded, 
@@ -169,5 +224,6 @@ export const useUploadedMedia = () => {
     isSyncing,
     lastSaved,
     isLoggedIn: !!user,
+    isInitialLoadDone,
   };
 };
