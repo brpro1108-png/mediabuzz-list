@@ -3,13 +3,45 @@ import { AppHeader } from '@/components/AppHeader';
 import { AppSidebar, UploadFilter, SortMode } from '@/components/AppSidebar';
 import { MediaList } from '@/components/MediaList';
 import { SmartCollectionBar } from '@/components/SmartCollectionBar';
+import { SmartCollectionCard } from '@/components/SmartCollectionCard';
+import { MediaPagination } from '@/components/MediaPagination';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
 import { useTMDBMedia } from '@/hooks/useTMDBMedia';
-import { Category, MediaItem, ViewFilter } from '@/types/media';
+import { Category, MediaItem, ViewFilter, SMART_COLLECTIONS } from '@/types/media';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ITEMS_PER_PAGE = 100;
+const COLLECTIONS_PER_PAGE = 20;
+
+// Generate all box office years
+const BOX_OFFICE_YEARS = Array.from({ length: 36 }, (_, i) => 2025 - i);
+
+// Map category to collection IDs
+const CATEGORY_COLLECTIONS: Record<string, string[]> = {
+  'Tendances': ['trending', 'now_playing', 'upcoming', 'top_rated'],
+  'Box Office': BOX_OFFICE_YEARS.map(y => `box_office_${y}`),
+  'Sagas': ['harrypotter', 'lotr', 'hobbit', 'starwars', 'bond', 'fast', 'jurassic', 'transformers', 'mission', 'pirates', 'matrix', 'avengers', 'xmen', 'batman', 'spiderman', 'iceage', 'shrek', 'toystory', 'despicableme', 'hungergames', 'twilight', 'indianajones', 'alien', 'terminator', 'rocky', 'diehard', 'bourne', 'johnwick', 'godfather', 'backtothefuture', 'madmax'],
+  'Studios': ['marvel', 'dc', 'disney', 'pixar', 'ghibli', 'dreamworks', 'warner', 'universal', 'paramount', 'sony', 'lionsgate', 'fox', 'mgm'],
+  'Genres': ['action', 'comedy', 'horror', 'romance', 'scifi', 'thriller', 'family', 'classics', 'war', 'musicals', 'animation', 'adventure', 'crime', 'mystery', 'western'],
+  'Awards': ['oscar', 'palme', 'golden_globe', 'bafta'],
+  'International': ['french', 'korean', 'kdrama', 'japanese', 'bollywood', 'spanish', 'latino', 'turkish', 'chinese', 'british', 'italian', 'german', 'arabic', 'thai', 'vietnamese'],
+  'Plateformes': ['netflix', 'disneyplus', 'hbo', 'prime', 'appletv', 'hulu', 'peacock', 'paramount_plus', 'showtime', 'starz'],
+  'Spécial': ['christmas', 'halloween', 'superhero', 'sports', 'biography', 'historical'],
+};
+
+// Get collection name
+const getCollectionName = (id: string): string => {
+  const config = SMART_COLLECTIONS[id as keyof typeof SMART_COLLECTIONS];
+  if (config) return config.name;
+  
+  // Handle dynamic box office years
+  if (id.startsWith('box_office_')) {
+    const year = id.replace('box_office_', '');
+    return `💰 Box Office ${year}`;
+  }
+  return id;
+};
 
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState<Category>('films');
@@ -21,6 +53,8 @@ const Index = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'local' | 'tmdb'>('local');
   const [currentPage, setCurrentPage] = useState(1);
+  const [activeSmartCategory, setActiveSmartCategory] = useState<string | null>(null);
+  const [collectionsPage, setCollectionsPage] = useState(1);
   
   const { toggleUploaded, isUploaded, uploadedIds } = useUploadedMedia();
   const { 
@@ -41,7 +75,8 @@ const Index = () => {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeCategory, activeTypeFilter, uploadFilter, sortMode, viewFilter, selectedGenres, localSearchQuery]);
+    setCollectionsPage(1);
+  }, [activeCategory, activeTypeFilter, uploadFilter, sortMode, viewFilter, selectedGenres, localSearchQuery, activeSmartCategory]);
 
   // Handle search item selection
   const handleSelectSearchItem = useCallback((item: MediaItem) => {
@@ -85,6 +120,27 @@ const Index = () => {
   const totalUploaded = stats.uploadedFilms + stats.uploadedSeries + 
     animes.filter(a => uploadedIds.has(a.id)).length + 
     docs.filter(d => uploadedIds.has(d.id)).length;
+
+  // Get collections for current smart category
+  const currentSmartCollections = useMemo(() => {
+    if (!activeSmartCategory) return [];
+    
+    const collectionIds = CATEGORY_COLLECTIONS[activeSmartCategory] || [];
+    return collectionIds
+      .filter(id => smartCollections[id] && smartCollections[id].length > 0)
+      .map(id => ({
+        id,
+        name: getCollectionName(id),
+        items: smartCollections[id] || [],
+      }));
+  }, [activeSmartCategory, smartCollections]);
+
+  // Paginate collections
+  const totalCollectionPages = Math.ceil(currentSmartCollections.length / COLLECTIONS_PER_PAGE);
+  const paginatedCollections = useMemo(() => {
+    const start = (collectionsPage - 1) * COLLECTIONS_PER_PAGE;
+    return currentSmartCollections.slice(start, start + COLLECTIONS_PER_PAGE);
+  }, [currentSmartCollections, collectionsPage]);
 
   // Filter and sort items
   const filteredItems = useMemo(() => {
@@ -137,6 +193,7 @@ const Index = () => {
   }, [currentItems, viewFilter, localSearchQuery, selectedGenres, uploadFilter, sortMode, uploadedIds]);
 
   const getTitle = () => {
+    if (activeSmartCategory) return activeSmartCategory;
     if (activeTypeFilter === 'anime') return 'Animes';
     if (activeTypeFilter === 'documentary') return 'Documentaires';
     return activeCategory === 'films' ? 'Films' : 'Séries';
@@ -144,6 +201,11 @@ const Index = () => {
 
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleCollectionsPageChange = useCallback((page: number) => {
+    setCollectionsPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
@@ -168,7 +230,10 @@ const Index = () => {
 
       <AppSidebar
         activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
+        onCategoryChange={(cat) => {
+          setActiveCategory(cat);
+          setActiveSmartCategory(null);
+        }}
         activeTypeFilter={activeTypeFilter}
         onTypeFilterChange={setActiveTypeFilter}
         uploadFilter={uploadFilter}
@@ -185,12 +250,11 @@ const Index = () => {
 
       <main className="app-main">
         <div className="p-6">
-          {/* Smart Collections */}
+          {/* Smart Collection Category Tabs */}
           {activeCategory === 'films' && !activeTypeFilter && (
             <SmartCollectionBar
-              collections={smartCollections}
-              isUploaded={isUploaded}
-              onToggleUpload={toggleUploaded}
+              activeSmartCategory={activeSmartCategory}
+              onSmartCategoryChange={setActiveSmartCategory}
             />
           )}
 
@@ -198,9 +262,12 @@ const Index = () => {
             <div className="flex items-center gap-4">
               <h2 className="text-xl font-semibold text-foreground">{getTitle()}</h2>
               <span className="text-sm text-muted-foreground">
-                {filteredItems.length.toLocaleString()} résultats
+                {activeSmartCategory 
+                  ? `${currentSmartCollections.length} collections`
+                  : `${filteredItems.length.toLocaleString()} résultats`
+                }
               </span>
-              {viewFilter === 'collections' && (
+              {viewFilter === 'collections' && !activeSmartCategory && (
                 <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">
                   Collections uniquement
                 </span>
@@ -238,6 +305,55 @@ const Index = () => {
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
               <p className="text-muted-foreground">Chargement des médias...</p>
+            </div>
+          ) : activeSmartCategory ? (
+            // Show smart collections directly as cards
+            <div className="space-y-4">
+              {/* Pagination Top */}
+              {totalCollectionPages > 1 && (
+                <MediaPagination
+                  currentPage={collectionsPage}
+                  totalPages={totalCollectionPages}
+                  onPageChange={handleCollectionsPageChange}
+                  totalItems={currentSmartCollections.length}
+                  itemsPerPage={COLLECTIONS_PER_PAGE}
+                />
+              )}
+
+              {/* Collection Cards */}
+              <div className="space-y-3">
+                {paginatedCollections.map(collection => (
+                  <SmartCollectionCard
+                    key={collection.id}
+                    id={collection.id}
+                    name={collection.name}
+                    items={collection.items}
+                    isUploaded={isUploaded}
+                    onToggleUpload={toggleUploaded}
+                  />
+                ))}
+              </div>
+
+              {paginatedCollections.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <div className="w-20 h-20 bg-secondary rounded-full flex items-center justify-center mb-4">
+                    <Loader2 className="w-10 h-10 text-muted-foreground animate-spin" />
+                  </div>
+                  <h3 className="text-lg font-medium text-foreground mb-1">Chargement des collections...</h3>
+                  <p className="text-sm text-muted-foreground">Les données sont en cours de récupération</p>
+                </div>
+              )}
+
+              {/* Pagination Bottom */}
+              {totalCollectionPages > 1 && (
+                <MediaPagination
+                  currentPage={collectionsPage}
+                  totalPages={totalCollectionPages}
+                  onPageChange={handleCollectionsPageChange}
+                  totalItems={currentSmartCollections.length}
+                  itemsPerPage={COLLECTIONS_PER_PAGE}
+                />
+              )}
             </div>
           ) : (
             <MediaList 
