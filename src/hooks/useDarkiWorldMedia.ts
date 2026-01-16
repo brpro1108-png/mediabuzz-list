@@ -1,129 +1,142 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MediaItem } from '@/types/media';
-import { getMovies, getSeriesContent } from '@/data/mockMedia';
+
+const MAX_PAGES = 50; // Load up to 50 pages per category (1000 items per category)
 
 export function useDarkiWorldMedia() {
   const [movies, setMovies] = useState<MediaItem[]>([]);
   const [seriesContent, setSeriesContent] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState({ movies: 1, series: 1, animes: 1, docs: 1 });
+  const currentPageRef = useRef({ movies: 0, series: 0, animes: 0, docs: 0 });
+  const hasMoreRef = useRef({ movies: true, series: true, animes: true, docs: true });
 
-  const fetchData = useCallback(async (loadMore = false) => {
-    if (!loadMore) {
-      setIsLoading(true);
+  const fetchPage = async (category: string, page: number): Promise<MediaItem[]> => {
+    const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tmdb-api`;
+    
+    try {
+      const res = await fetch(`${baseUrl}?category=${category}&page=${page}`, {
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+      });
+      
+      const data = await res.json();
+      
+      if (data.success && data.data.length > 0) {
+        return data.data;
+      }
+      return [];
+    } catch (err) {
+      console.error(`Error fetching ${category} page ${page}:`, err);
+      return [];
     }
+  };
+
+  const loadInitialData = useCallback(async () => {
+    setIsLoading(true);
     setError(null);
 
     try {
-      const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tmdb-api`;
+      // Load first 5 pages of each category in parallel
+      const initialPages = 5;
       
-      const pages = loadMore ? {
-        movies: currentPage.movies + 1,
-        series: currentPage.series + 1,
-        animes: currentPage.animes + 1,
-        docs: currentPage.docs + 1,
-      } : { movies: 1, series: 1, animes: 1, docs: 1 };
+      const moviePromises = Array.from({ length: initialPages }, (_, i) => fetchPage('movies', i + 1));
+      const seriesPromises = Array.from({ length: initialPages }, (_, i) => fetchPage('series', i + 1));
+      const animesPromises = Array.from({ length: initialPages }, (_, i) => fetchPage('animes', i + 1));
+      const docsPromises = Array.from({ length: initialPages }, (_, i) => fetchPage('docs', i + 1));
 
-      const [moviesRes, seriesRes, animesRes, docsRes] = await Promise.all([
-        fetch(`${baseUrl}?category=movies&page=${pages.movies}`, {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }),
-        fetch(`${baseUrl}?category=series&page=${pages.series}`, {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }),
-        fetch(`${baseUrl}?category=animes&page=${pages.animes}`, {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }),
-        fetch(`${baseUrl}?category=docs&page=${pages.docs}`, {
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-        }),
+      const [movieResults, seriesResults, animesResults, docsResults] = await Promise.all([
+        Promise.all(moviePromises),
+        Promise.all(seriesPromises),
+        Promise.all(animesPromises),
+        Promise.all(docsPromises),
       ]);
 
-      const [moviesData, seriesData, animesData, docsData] = await Promise.all([
-        moviesRes.json(),
-        seriesRes.json(),
-        animesRes.json(),
-        docsRes.json(),
-      ]);
+      const allMovies = movieResults.flat();
+      const allSeries = [...seriesResults.flat(), ...animesResults.flat(), ...docsResults.flat()];
 
-      // Check if we got real data
-      if (moviesData.success && moviesData.data.length > 0) {
-        if (loadMore) {
-          setMovies(prev => [...prev, ...moviesData.data]);
-        } else {
-          setMovies(moviesData.data);
-        }
-      } else if (!loadMore) {
-        // Fallback to mock data
-        console.log('Using mock data for movies');
-        setMovies(getMovies());
-      }
-
-      // Combine series, animes, and docs
-      const combinedSeries: MediaItem[] = [];
+      setMovies(allMovies);
+      setSeriesContent(allSeries);
       
-      if (seriesData.success && seriesData.data.length > 0) {
-        combinedSeries.push(...seriesData.data);
-      }
-      if (animesData.success && animesData.data.length > 0) {
-        combinedSeries.push(...animesData.data);
-      }
-      if (docsData.success && docsData.data.length > 0) {
-        combinedSeries.push(...docsData.data);
-      }
-
-      if (combinedSeries.length > 0) {
-        if (loadMore) {
-          setSeriesContent(prev => [...prev, ...combinedSeries]);
-        } else {
-          setSeriesContent(combinedSeries);
-        }
-      } else if (!loadMore) {
-        // Fallback to mock data
-        console.log('Using mock data for series');
-        setSeriesContent(getSeriesContent());
-      }
-
-      if (loadMore) {
-        setCurrentPage(pages);
-      } else {
-        setCurrentPage({ movies: 1, series: 1, animes: 1, docs: 1 });
-      }
+      currentPageRef.current = { movies: initialPages, series: initialPages, animes: initialPages, docs: initialPages };
+      
+      // Check if there's more data
+      hasMoreRef.current = {
+        movies: movieResults[initialPages - 1]?.length > 0,
+        series: seriesResults[initialPages - 1]?.length > 0,
+        animes: animesResults[initialPages - 1]?.length > 0,
+        docs: docsResults[initialPages - 1]?.length > 0,
+      };
 
     } catch (err) {
-      console.error('Error fetching TMDB data:', err);
-      setError('Erreur lors du chargement des données. Utilisation des données de démonstration.');
-      // Use mock data as fallback
-      if (!movies.length) setMovies(getMovies());
-      if (!seriesContent.length) setSeriesContent(getSeriesContent());
+      console.error('Error loading initial data:', err);
+      setError('Erreur lors du chargement. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, movies.length, seriesContent.length]);
-
-  useEffect(() => {
-    fetchData();
   }, []);
 
-  const loadMore = useCallback(() => {
-    fetchData(true);
-  }, [fetchData]);
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore) return;
+    
+    const hasAnyMore = Object.values(hasMoreRef.current).some(Boolean);
+    if (!hasAnyMore || currentPageRef.current.movies >= MAX_PAGES) return;
+
+    setIsLoadingMore(true);
+
+    try {
+      const nextPages = {
+        movies: currentPageRef.current.movies + 1,
+        series: currentPageRef.current.series + 1,
+        animes: currentPageRef.current.animes + 1,
+        docs: currentPageRef.current.docs + 1,
+      };
+
+      const [newMovies, newSeries, newAnimes, newDocs] = await Promise.all([
+        hasMoreRef.current.movies ? fetchPage('movies', nextPages.movies) : Promise.resolve([]),
+        hasMoreRef.current.series ? fetchPage('series', nextPages.series) : Promise.resolve([]),
+        hasMoreRef.current.animes ? fetchPage('animes', nextPages.animes) : Promise.resolve([]),
+        hasMoreRef.current.docs ? fetchPage('docs', nextPages.docs) : Promise.resolve([]),
+      ]);
+
+      if (newMovies.length > 0) {
+        setMovies(prev => [...prev, ...newMovies]);
+      } else {
+        hasMoreRef.current.movies = false;
+      }
+
+      const combinedNewSeries = [...newSeries, ...newAnimes, ...newDocs];
+      if (combinedNewSeries.length > 0) {
+        setSeriesContent(prev => [...prev, ...combinedNewSeries]);
+      }
+      
+      if (newSeries.length === 0) hasMoreRef.current.series = false;
+      if (newAnimes.length === 0) hasMoreRef.current.animes = false;
+      if (newDocs.length === 0) hasMoreRef.current.docs = false;
+
+      currentPageRef.current = nextPages;
+
+    } catch (err) {
+      console.error('Error loading more data:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
 
   return {
     movies,
     seriesContent,
     isLoading,
+    isLoadingMore,
     error,
-    refetch: () => fetchData(false),
+    refetch: loadInitialData,
     loadMore,
+    hasMore: Object.values(hasMoreRef.current).some(Boolean),
   };
 }
