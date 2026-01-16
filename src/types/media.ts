@@ -212,4 +212,62 @@ export const SMART_COLLECTIONS = {
   sports: { id: 'sports', name: '🏆 Films de Sport', color: 'hsl(120, 60%, 40%)' },
   biography: { id: 'biography', name: '📖 Biographies', color: 'hsl(30, 50%, 40%)' },
   historical: { id: 'historical', name: '🏛️ Films Historiques', color: 'hsl(35, 40%, 35%)' },
+
+  // ========== SERIES COLLECTIONS ==========
+  // Series Trends
+  series_trending: { id: 'series_trending', name: '🔥 Séries du moment', color: 'hsl(0, 80%, 50%)' },
+  series_popular: { id: 'series_popular', name: '⭐ Séries populaires', color: 'hsl(45, 80%, 50%)' },
+  series_top_rated: { id: 'series_top_rated', name: '🏆 Meilleures séries', color: 'hsl(45, 100%, 50%)' },
+  series_airing: { id: 'series_airing', name: '📺 En diffusion', color: 'hsl(200, 80%, 50%)' },
+  series_new: { id: 'series_new', name: '🆕 Nouvelles séries', color: 'hsl(280, 80%, 50%)' },
+
+  // K-Drama Collections
+  kdrama_popular: { id: 'kdrama_popular', name: '🇰🇷 K-Drama Populaires', color: 'hsl(340, 80%, 55%)' },
+  kdrama_romance: { id: 'kdrama_romance', name: '💕 K-Drama Romance', color: 'hsl(330, 70%, 60%)' },
+  kdrama_thriller: { id: 'kdrama_thriller', name: '🔪 K-Drama Thriller', color: 'hsl(0, 50%, 35%)' },
+  kdrama_historical: { id: 'kdrama_historical', name: '🏯 K-Drama Historique', color: 'hsl(30, 60%, 40%)' },
+  kdrama_fantasy: { id: 'kdrama_fantasy', name: '✨ K-Drama Fantasy', color: 'hsl(280, 70%, 50%)' },
+
+  // Series Platforms
+  netflix_series: { id: 'netflix_series', name: '📺 Netflix Séries', color: 'hsl(0, 80%, 45%)' },
+  disney_series: { id: 'disney_series', name: '➕ Disney+ Séries', color: 'hsl(220, 80%, 50%)' },
+  hbo_series: { id: 'hbo_series', name: '📺 HBO Séries', color: 'hsl(270, 60%, 45%)' },
+  prime_series: { id: 'prime_series', name: '📦 Prime Séries', color: 'hsl(195, 100%, 40%)' },
+  apple_series: { id: 'apple_series', name: '🍎 Apple TV+ Séries', color: 'hsl(0, 0%, 20%)' },
+  paramount_series: { id: 'paramount_series', name: '⛰️ Paramount+ Séries', color: 'hsl(220, 80%, 50%)' },
+
+  // Series International
+  turkish_series: { id: 'turkish_series', name: '🇹🇷 Séries Turques', color: 'hsl(0, 80%, 45%)' },
+  spanish_series: { id: 'spanish_series', name: '🇪🇸 Séries Espagnoles', color: 'hsl(0, 80%, 50%)' },
+  british_series: { id: 'british_series', name: '🇬🇧 Séries Britanniques', color: 'hsl(220, 60%, 40%)' },
+  french_series: { id: 'french_series', name: '🇫🇷 Séries Françaises', color: 'hsl(240, 70%, 50%)' },
+  japanese_series: { id: 'japanese_series', name: '🇯🇵 Séries Japonaises', color: 'hsl(0, 0%, 30%)' },
+  latino_series: { id: 'latino_series', name: '🌴 Séries Latino', color: 'hsl(40, 90%, 50%)' },
+  chinese_series: { id: 'chinese_series', name: '🇨🇳 Séries Chinoises', color: 'hsl(0, 80%, 40%)' },
+
+  // Series Genres
+  series_drama: { id: 'series_drama', name: '🎭 Dramas', color: 'hsl(270, 50%, 40%)' },
+  series_comedy: { id: 'series_comedy', name: '😂 Comédies', color: 'hsl(50, 90%, 50%)' },
+  series_crime: { id: 'series_crime', name: '🔍 Crime & Policier', color: 'hsl(0, 30%, 30%)' },
+  series_scifi: { id: 'series_scifi', name: '🚀 Sci-Fi', color: 'hsl(220, 80%, 50%)' },
+  series_fantasy: { id: 'series_fantasy', name: '🐉 Fantasy', color: 'hsl(280, 70%, 50%)' },
+  series_horror: { id: 'series_horror', name: '👻 Horreur', color: 'hsl(270, 50%, 30%)' },
+  series_thriller: { id: 'series_thriller', name: '😱 Thriller', color: 'hsl(0, 50%, 35%)' },
+  series_action: { id: 'series_action', name: '💥 Action', color: 'hsl(15, 90%, 50%)' },
+  series_mystery: { id: 'series_mystery', name: '🕵️ Mystère', color: 'hsl(260, 40%, 40%)' },
+  series_romance: { id: 'series_romance', name: '💕 Romance', color: 'hsl(330, 70%, 60%)' },
+
+  // Classic TV
+  series_classic: { id: 'series_classic', name: '📺 Séries Classiques', color: 'hsl(30, 60%, 40%)' },
+  series_sitcom: { id: 'series_sitcom', name: '😄 Sitcoms', color: 'hsl(50, 90%, 50%)' },
+  series_medical: { id: 'series_medical', name: '🏥 Séries Médicales', color: 'hsl(180, 60%, 40%)' },
+  series_legal: { id: 'series_legal', name: '⚖️ Séries Juridiques', color: 'hsl(30, 40%, 35%)' },
+  series_teen: { id: 'series_teen', name: '🎓 Séries Ados', color: 'hsl(320, 70%, 55%)' },
+
+  // Animation Series
+  anime_popular: { id: 'anime_popular', name: '🇯🇵 Anime Populaires', color: 'hsl(0, 80%, 50%)' },
+  anime_action: { id: 'anime_action', name: '⚔️ Anime Action', color: 'hsl(15, 90%, 50%)' },
+  anime_romance: { id: 'anime_romance', name: '💕 Anime Romance', color: 'hsl(330, 70%, 60%)' },
+  anime_fantasy: { id: 'anime_fantasy', name: '✨ Anime Fantasy', color: 'hsl(280, 70%, 50%)' },
+  cartoon_series: { id: 'cartoon_series', name: '🎨 Dessins Animés', color: 'hsl(40, 90%, 50%)' },
 } as const;

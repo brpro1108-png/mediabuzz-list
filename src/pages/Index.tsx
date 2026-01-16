@@ -17,8 +17,8 @@ const COLLECTIONS_PER_PAGE = 20;
 // Generate all box office years
 const BOX_OFFICE_YEARS = Array.from({ length: 36 }, (_, i) => 2025 - i);
 
-// Map category to collection IDs
-const CATEGORY_COLLECTIONS: Record<string, string[]> = {
+// Map category to collection IDs for MOVIES
+const MOVIE_CATEGORY_COLLECTIONS: Record<string, string[]> = {
   'Tendances': ['trending', 'now_playing', 'upcoming', 'top_rated'],
   'Box Office': BOX_OFFICE_YEARS.map(y => `box_office_${y}`),
   'Sagas': ['harrypotter', 'lotr', 'hobbit', 'starwars', 'bond', 'fast', 'jurassic', 'transformers', 'mission', 'pirates', 'matrix', 'avengers', 'xmen', 'batman', 'spiderman', 'iceage', 'shrek', 'toystory', 'despicableme', 'hungergames', 'twilight', 'indianajones', 'alien', 'terminator', 'rocky', 'diehard', 'bourne', 'johnwick', 'godfather', 'backtothefuture', 'madmax'],
@@ -28,6 +28,17 @@ const CATEGORY_COLLECTIONS: Record<string, string[]> = {
   'International': ['french', 'korean', 'kdrama', 'japanese', 'bollywood', 'spanish', 'latino', 'turkish', 'chinese', 'british', 'italian', 'german', 'arabic', 'thai', 'vietnamese'],
   'Plateformes': ['netflix', 'disneyplus', 'hbo', 'prime', 'appletv', 'hulu', 'peacock', 'paramount_plus', 'showtime', 'starz'],
   'Spécial': ['christmas', 'halloween', 'superhero', 'sports', 'biography', 'historical'],
+};
+
+// Map category to collection IDs for SERIES
+const SERIES_CATEGORY_COLLECTIONS: Record<string, string[]> = {
+  'Tendances Séries': ['series_trending', 'series_popular', 'series_top_rated', 'series_airing', 'series_new'],
+  'K-Drama': ['kdrama_popular', 'kdrama_romance', 'kdrama_thriller', 'kdrama_historical', 'kdrama_fantasy'],
+  'Plateformes': ['netflix_series', 'disney_series', 'hbo_series', 'prime_series', 'apple_series', 'paramount_series'],
+  'International': ['turkish_series', 'spanish_series', 'british_series', 'french_series', 'japanese_series', 'latino_series', 'chinese_series'],
+  'Genres': ['series_drama', 'series_comedy', 'series_crime', 'series_scifi', 'series_fantasy', 'series_horror', 'series_thriller', 'series_action', 'series_mystery', 'series_romance'],
+  'Classiques TV': ['series_classic', 'series_sitcom', 'series_medical', 'series_legal', 'series_teen'],
+  'Animations': ['anime_popular', 'anime_action', 'anime_romance', 'anime_fantasy', 'cartoon_series'],
 };
 
 // Get collection name
@@ -63,6 +74,7 @@ const Index = () => {
     animes, 
     docs,
     smartCollections,
+    seriesCollections,
     isLoading, 
     error, 
     refetch, 
@@ -77,6 +89,11 @@ const Index = () => {
     setCurrentPage(1);
     setCollectionsPage(1);
   }, [activeCategory, activeTypeFilter, uploadFilter, sortMode, viewFilter, selectedGenres, localSearchQuery, activeSmartCategory]);
+
+  // Reset smart category when changing main category
+  useEffect(() => {
+    setActiveSmartCategory(null);
+  }, [activeCategory]);
 
   // Handle search item selection
   const handleSelectSearchItem = useCallback((item: MediaItem) => {
@@ -125,15 +142,18 @@ const Index = () => {
   const currentSmartCollections = useMemo(() => {
     if (!activeSmartCategory) return [];
     
-    const collectionIds = CATEGORY_COLLECTIONS[activeSmartCategory] || [];
+    const categoryMap = activeCategory === 'films' ? MOVIE_CATEGORY_COLLECTIONS : SERIES_CATEGORY_COLLECTIONS;
+    const collectionsData = activeCategory === 'films' ? smartCollections : seriesCollections;
+    const collectionIds = categoryMap[activeSmartCategory] || [];
+    
     return collectionIds
-      .filter(id => smartCollections[id] && smartCollections[id].length > 0)
+      .filter(id => collectionsData[id] && collectionsData[id].length > 0)
       .map(id => ({
         id,
         name: getCollectionName(id),
-        items: smartCollections[id] || [],
+        items: collectionsData[id] || [],
       }));
-  }, [activeSmartCategory, smartCollections]);
+  }, [activeSmartCategory, activeCategory, smartCollections, seriesCollections]);
 
   // Paginate collections
   const totalCollectionPages = Math.ceil(currentSmartCollections.length / COLLECTIONS_PER_PAGE);
@@ -209,6 +229,9 @@ const Index = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
+  // Check if we should show smart collections bar
+  const showSmartCollections = !activeTypeFilter;
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
@@ -251,10 +274,11 @@ const Index = () => {
       <main className="app-main">
         <div className="p-6">
           {/* Smart Collection Category Tabs */}
-          {activeCategory === 'films' && !activeTypeFilter && (
+          {showSmartCollections && (
             <SmartCollectionBar
               activeSmartCategory={activeSmartCategory}
               onSmartCategoryChange={setActiveSmartCategory}
+              mediaCategory={activeCategory}
             />
           )}
 
