@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      media_load_state: {
+        Row: {
+          animes_pages: number
+          created_at: string
+          docs_pages: number
+          id: string
+          movies_pages: number
+          series_pages: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          animes_pages?: number
+          created_at?: string
+          docs_pages?: number
+          id?: string
+          movies_pages?: number
+          series_pages?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          animes_pages?: number
+          created_at?: string
+          docs_pages?: number
+          id?: string
+          movies_pages?: number
+          series_pages?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       uploaded_media: {
         Row: {
           created_at: string
