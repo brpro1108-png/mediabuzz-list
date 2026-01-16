@@ -2,78 +2,82 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 7%;
-    --foreground: 0 0% 100%;
+    --background: 220 15% 8%;
+    --foreground: 0 0% 98%;
 
-    --card: 0 0% 11%;
-    --card-foreground: 0 0% 100%;
+    --card: 220 15% 12%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 11%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 220 15% 12%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 0 100% 50%;
+    --primary: 142 70% 45%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 18%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 18%;
-    --muted-foreground: 0 0% 60%;
+    --muted: 220 15% 20%;
+    --muted-foreground: 220 10% 55%;
 
-    --accent: 0 0% 20%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 220 15% 22%;
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 18%;
-    --ring: 0 100% 50%;
+    --border: 220 15% 20%;
+    --input: 220 15% 18%;
+    --ring: 142 70% 45%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    /* Custom YouTube-style colors */
+    /* Status colors */
     --uploaded: 142 70% 45%;
     --uploaded-foreground: 0 0% 100%;
+    --pending: 45 90% 55%;
+    --pending-foreground: 0 0% 10%;
+
+    /* Type colors */
     --film-accent: 45 90% 55%;
     --series-accent: 200 80% 55%;
-    --anime-accent: 330 80% 60%;
+    --anime-accent: 280 80% 60%;
     --doc-accent: 160 60% 45%;
 
-    --sidebar-background: 0 0% 7%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 0 100% 50%;
+    --sidebar-background: 220 15% 10%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 142 70% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 15%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 20%;
-    --sidebar-ring: 0 100% 50%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 142 70% 45%;
   }
 
   .dark {
-    --background: 0 0% 7%;
-    --foreground: 0 0% 100%;
-    --card: 0 0% 11%;
-    --card-foreground: 0 0% 100%;
-    --popover: 0 0% 11%;
-    --popover-foreground: 0 0% 100%;
-    --primary: 0 100% 50%;
+    --background: 220 15% 8%;
+    --foreground: 0 0% 98%;
+    --card: 220 15% 12%;
+    --card-foreground: 0 0% 98%;
+    --popover: 220 15% 12%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 142 70% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 18%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 0 0% 18%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 20%;
-    --accent-foreground: 0 0% 100%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 220 15% 20%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 220 15% 22%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 20%;
-    --input: 0 0% 18%;
-    --ring: 0 100% 50%;
+    --border: 220 15% 20%;
+    --input: 220 15% 18%;
+    --ring: 142 70% 45%;
   }
 }
 
@@ -84,122 +88,132 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: 'Roboto', sans-serif;
+    font-family: 'Inter', sans-serif;
   }
 }
 
 @layer components {
-  /* YouTube-style chip/pill buttons */
-  .chip {
-    @apply px-3 py-1.5 rounded-lg text-sm font-medium transition-colors;
-    @apply bg-secondary text-secondary-foreground hover:bg-accent;
+  /* Progress bar */
+  .progress-bar {
+    @apply h-2 bg-secondary rounded-full overflow-hidden;
   }
 
-  .chip-active {
-    @apply bg-foreground text-background;
+  .progress-bar-fill {
+    @apply h-full bg-primary rounded-full transition-all duration-500 ease-out;
   }
 
-  /* YouTube-style card */
-  .yt-card {
-    @apply cursor-pointer transition-all duration-200;
+  /* Header */
+  .app-header {
+    @apply fixed top-0 left-0 right-0 h-16 bg-card/95 backdrop-blur-md z-50;
+    @apply flex items-center justify-between px-6 border-b border-border;
   }
 
-  .yt-card:hover .yt-thumbnail {
-    @apply rounded-none;
+  /* Sidebar */
+  .app-sidebar {
+    @apply fixed left-0 top-16 bottom-0 w-64 bg-card z-40;
+    @apply border-r border-border overflow-y-auto;
   }
 
-  .yt-thumbnail {
-    @apply w-full aspect-video object-cover rounded-xl transition-all duration-200;
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 mx-2 rounded-lg;
+    @apply text-sm text-muted-foreground hover:bg-accent hover:text-foreground;
+    @apply transition-all duration-200 cursor-pointer;
   }
 
-  /* Uploaded badge YouTube style */
-  .uploaded-badge-yt {
-    @apply absolute top-2 right-2 px-2 py-1 text-xs font-medium rounded;
-    @apply bg-uploaded text-uploaded-foreground;
+  .sidebar-item-active {
+    @apply bg-primary/10 text-primary font-medium;
   }
 
-  /* Type badge */
-  .type-badge-yt {
-    @apply absolute bottom-2 right-2 px-1.5 py-0.5 text-xs font-medium rounded;
-    @apply bg-black/80 text-white;
+  /* Main content */
+  .app-main {
+    @apply pt-16 pl-64 min-h-screen;
   }
 
-  /* Search bar YouTube style */
-  .yt-search {
-    @apply flex items-center bg-background border border-border rounded-full overflow-hidden;
+  /* Media list item */
+  .media-item {
+    @apply flex items-center gap-4 p-4 bg-card rounded-xl;
+    @apply border border-transparent hover:border-border;
+    @apply transition-all duration-200 cursor-pointer;
   }
 
-  .yt-search-input {
-    @apply flex-1 bg-transparent px-4 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none;
+  .media-item:hover {
+    @apply bg-accent/50;
   }
 
-  .yt-search-btn {
-    @apply px-6 py-2 bg-secondary hover:bg-accent transition-colors border-l border-border;
+  .media-item-uploaded {
+    @apply border-l-4 border-l-uploaded;
   }
 
-  /* Sidebar YouTube style */
-  .yt-sidebar {
-    @apply fixed left-0 top-14 bottom-0 w-60 bg-background overflow-y-auto;
-    @apply border-r border-border z-40;
+  .media-poster {
+    @apply w-16 h-24 object-cover rounded-lg flex-shrink-0;
   }
 
-  .yt-sidebar-mini {
-    @apply w-[72px];
+  .media-poster-small {
+    @apply w-12 h-18 object-cover rounded-md flex-shrink-0;
   }
 
-  .yt-sidebar-item {
-    @apply flex items-center gap-5 px-3 py-2.5 rounded-xl mx-1 my-0.5;
-    @apply text-sm hover:bg-accent transition-colors cursor-pointer;
+  /* Type badges */
+  .type-badge {
+    @apply px-2 py-0.5 text-xs font-medium rounded-md;
   }
 
-  .yt-sidebar-item-active {
-    @apply bg-accent font-medium;
+  .type-badge-movie {
+    @apply bg-film text-black;
   }
 
-  /* Header YouTube style */
-  .yt-header {
-    @apply fixed top-0 left-0 right-0 h-14 bg-background z-50;
-    @apply flex items-center justify-between px-4 gap-4;
+  .type-badge-series {
+    @apply bg-series text-white;
   }
 
-  /* Main content area */
-  .yt-main {
-    @apply pt-14 pl-60 min-h-screen;
+  .type-badge-anime {
+    @apply bg-anime text-white;
   }
 
-  .yt-main-mini {
-    @apply pl-[72px];
+  .type-badge-doc {
+    @apply bg-doc text-white;
   }
 
-  /* Grid YouTube style */
-  .yt-grid {
-    @apply grid gap-4;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* Upload status */
+  .upload-status {
+    @apply flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium;
   }
 
-  /* Compact grid - smaller cards */
-  .yt-grid-compact {
-    @apply grid gap-3;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  .upload-status-done {
+    @apply bg-uploaded/20 text-uploaded;
   }
 
-  /* List view */
-  .yt-grid-list {
-    @apply flex flex-col gap-2;
+  .upload-status-pending {
+    @apply bg-secondary text-muted-foreground;
   }
 
-  /* Compact card style */
-  .yt-card-compact {
-    @apply cursor-pointer transition-all duration-200 p-1;
+  /* Filter chips */
+  .filter-chip {
+    @apply px-4 py-2 rounded-full text-sm font-medium;
+    @apply bg-secondary text-muted-foreground;
+    @apply hover:bg-accent hover:text-foreground;
+    @apply transition-all duration-200 cursor-pointer;
   }
 
-  .yt-card-compact:hover img {
-    @apply opacity-90;
+  .filter-chip-active {
+    @apply bg-primary text-primary-foreground;
   }
 
-  /* Scrollbar styling */
+  /* Search */
+  .search-input {
+    @apply w-full bg-secondary border-none rounded-xl px-4 py-3;
+    @apply text-foreground placeholder:text-muted-foreground;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary/50;
+  }
+
+  /* Stats card */
+  .stats-card {
+    @apply bg-card rounded-xl p-4 border border-border;
+  }
+
+  /* Scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
   }
 
   ::-webkit-scrollbar-track {
@@ -207,15 +221,15 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(0 0% 30%);
+    background: hsl(220 15% 25%);
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(0 0% 40%);
+    background: hsl(220 15% 35%);
   }
 
-  /* Loading skeleton */
+  /* Skeleton loading */
   .skeleton {
     @apply animate-pulse bg-secondary rounded;
   }

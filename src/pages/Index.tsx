@@ -1,27 +1,35 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { YTHeader } from '@/components/YTHeader';
-import { YTSidebar } from '@/components/YTSidebar';
-import { YTChips, SortFilter, UploadFilter, ViewMode } from '@/components/YTChips';
-import { YTGrid } from '@/components/YTGrid';
+import { AppHeader } from '@/components/AppHeader';
+import { AppSidebar, UploadFilter, SortMode } from '@/components/AppSidebar';
+import { MediaList } from '@/components/MediaList';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
 import { useDarkiWorldMedia } from '@/hooks/useDarkiWorldMedia';
 import { Category } from '@/types/media';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 const Index = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeCategory, setActiveCategory] = useState<Category>('films');
   const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortFilter, setSortFilter] = useState<SortFilter>(null);
-  const [uploadFilter, setUploadFilter] = useState<UploadFilter>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('normal');
+  const [uploadFilter, setUploadFilter] = useState<UploadFilter>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('default');
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const { toggleUploaded, isUploaded, uploadedIds } = useUploadedMedia();
   const { movies, seriesContent, isLoading, isLoadingMore, error, refetch, loadMore, hasMore } = useDarkiWorldMedia();
 
   const currentItems = activeCategory === 'films' ? movies : seriesContent;
+
+  // Calculate stats
+  const stats = useMemo(() => ({
+    totalFilms: movies.length,
+    totalSeries: seriesContent.length,
+    uploadedFilms: movies.filter(m => uploadedIds.has(m.id)).length,
+    uploadedSeries: seriesContent.filter(s => uploadedIds.has(s.id)).length,
+  }), [movies, seriesContent, uploadedIds]);
+
+  const totalMedia = movies.length + seriesContent.length;
+  const totalUploaded = stats.uploadedFilms + stats.uploadedSeries;
 
   const filteredItems = useMemo(() => {
     let result = [...currentItems];
@@ -49,19 +57,19 @@ const Index = () => {
       result = result.filter((item) => !uploadedIds.has(item.id));
     }
 
-    // Sort filter
-    if (sortFilter === 'recent') {
+    // Sort
+    if (sortMode === 'recent') {
       result = result.sort((a, b) => {
         const dateA = a.releaseDate || a.year || '';
         const dateB = b.releaseDate || b.year || '';
         return dateB.localeCompare(dateA);
       });
-    } else if (sortFilter === 'popular') {
+    } else if (sortMode === 'popular') {
       result = result.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
     }
 
     return result;
-  }, [currentItems, searchQuery, activeTypeFilter, activeCategory, uploadFilter, sortFilter, uploadedIds]);
+  }, [currentItems, searchQuery, activeTypeFilter, activeCategory, uploadFilter, sortMode, uploadedIds]);
 
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
@@ -85,67 +93,44 @@ const Index = () => {
     };
   }, [handleObserver]);
 
-  const uploadedInCurrentCategory = useMemo(() => {
-    return currentItems.filter((item) => uploadedIds.has(item.id)).length;
-  }, [currentItems, uploadedIds]);
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <YTHeader
+      <AppHeader
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        onRefresh={refetch}
+        isLoading={isLoading}
+        totalMedia={totalMedia}
+        uploadedCount={totalUploaded}
       />
 
       {/* Sidebar */}
-      <YTSidebar
-        isOpen={sidebarOpen}
+      <AppSidebar
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
-        uploadedCount={uploadedInCurrentCategory}
-        totalCount={currentItems.length}
+        activeTypeFilter={activeTypeFilter}
+        onTypeFilterChange={setActiveTypeFilter}
         uploadFilter={uploadFilter}
         onUploadFilterChange={setUploadFilter}
+        sortMode={sortMode}
+        onSortModeChange={setSortMode}
+        stats={stats}
       />
 
       {/* Main content */}
-      <main className={`yt-main ${!sidebarOpen ? 'yt-main-mini' : ''} transition-all duration-200`}>
+      <main className="app-main">
         <div className="p-6">
-          {/* Chips filter bar */}
-          <div className="flex items-center gap-4 mb-6">
-            <YTChips
-              activeCategory={activeCategory}
-              onCategoryChange={setActiveCategory}
-              activeTypeFilter={activeTypeFilter}
-              onTypeFilterChange={setActiveTypeFilter}
-              sortFilter={sortFilter}
-              onSortFilterChange={setSortFilter}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
-            
-            {/* Refresh button */}
-            <button
-              onClick={refetch}
-              disabled={isLoading}
-              className="p-2 bg-secondary hover:bg-accent rounded-full transition-colors flex-shrink-0"
-              title="Actualiser"
-            >
-              <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-
           {/* Stats bar */}
-          <div className="flex items-center gap-6 mb-6 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{filteredItems.length.toLocaleString()} médias</span>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-uploaded" />
-              <span>{uploadedInCurrentCategory.toLocaleString()} uploadés</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-destructive" />
-              <span>{(currentItems.length - uploadedInCurrentCategory).toLocaleString()} restants</span>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-semibold text-foreground">
+                {activeCategory === 'films' ? 'Films' : 'Séries'}
+                {activeTypeFilter && ` • ${activeTypeFilter === 'anime' ? 'Anime' : activeTypeFilter === 'documentary' ? 'Documentaires' : 'Séries TV'}`}
+              </h2>
+              <span className="text-sm text-muted-foreground">
+                {filteredItems.length.toLocaleString()} résultats
+              </span>
             </div>
           </div>
 
@@ -153,15 +138,14 @@ const Index = () => {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
-              <p className="text-muted-foreground">Chargement des médias TMDB...</p>
+              <p className="text-muted-foreground">Chargement des médias...</p>
             </div>
           ) : (
             <>
-              <YTGrid 
+              <MediaList 
                 items={filteredItems} 
                 isUploaded={isUploaded} 
                 onToggleUpload={toggleUploaded}
-                viewMode={viewMode}
               />
               
               {/* Load more trigger */}
@@ -174,7 +158,7 @@ const Index = () => {
                 )}
                 {!hasMore && filteredItems.length > 0 && (
                   <p className="text-sm text-muted-foreground">
-                    Fin du catalogue • {filteredItems.length.toLocaleString()} médias affichés
+                    Fin du catalogue • {filteredItems.length.toLocaleString()} médias
                   </p>
                 )}
               </div>
@@ -182,7 +166,7 @@ const Index = () => {
           )}
 
           {error && (
-            <div className="text-center py-4 text-muted-foreground text-sm">{error}</div>
+            <div className="text-center py-4 text-destructive text-sm">{error}</div>
           )}
         </div>
       </main>
