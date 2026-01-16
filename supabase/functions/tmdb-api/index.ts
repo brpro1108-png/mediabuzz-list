@@ -36,6 +36,64 @@ const SERIES_GENRES: Record<number, string> = {
   10767: 'Talk', 10768: 'Guerre & Politique', 37: 'Western'
 };
 
+// Major TV networks for discovering more content
+const TV_NETWORKS = [
+  213,   // Netflix
+  2739,  // Disney+
+  1024,  // Amazon Prime
+  49,    // HBO
+  67,    // Showtime
+  2552,  // Apple TV+
+  453,   // Hulu
+  56,    // Cartoon Network
+  2087,  // YouTube Premium
+  174,   // AMC
+  19,    // FOX
+  6,     // NBC
+  16,    // CBS
+  2,     // ABC
+  71,    // The CW
+  43,    // Nickelodeon
+  44,    // Disney Channel
+  34,    // Lifetime
+  88,    // FX
+  318,   // Starz
+  4,     // BBC One
+  493,   // BBC Two
+  14,    // BBC Three
+  26,    // Channel 4
+  103,   // ITV
+  3,     // TF1
+  11,    // M6
+  1,     // Canal+
+  47,    // France 2
+  78,    // France 3
+  96,    // Arte
+  13,    // RTL
+  207,   // ProSieben
+  232,   // RAI 1
+  48,    // Mediaset
+  150,   // Antena 3
+  108,   // Telecinco
+  97,    // Televisa
+  22,    // TV Globo
+  1465,  // RTP1
+  73,    // TVN
+  366,   // TVP
+  299,   // Cuatro
+  176,   // La Sexta
+  455,   // Paramount+
+  3186,  // HBO Max
+  4330,  // Paramount+
+  1709,  // Max
+];
+
+// Languages for international content
+const LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'ja', 'ko', 'zh', 'ar', 'hi', 'ru', 'tr', 'pl', 'nl'];
+
+// Production countries
+const COUNTRIES = ['US', 'GB', 'FR', 'ES', 'DE', 'IT', 'JP', 'KR', 'MX', 'BR', 'AR', 'CO', 'IN', 'CA', 'AU'];
+
 async function fetchTMDB(endpoint: string, apiKey: string, params: Record<string, string> = {}) {
   const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
   url.searchParams.set("api_key", apiKey);
@@ -116,63 +174,120 @@ serve(async (req) => {
 
     let data: MediaItem[] = [];
     let totalPages = 1;
+    const pageNum = parseInt(page);
 
     // Search mode - real-time TMDB search
     if (search) {
-      if (category === "movies") {
-        const result = await fetchTMDB("/search/movie", apiKey, { query: search, page });
-        data = result.results.filter((item: any) => item.poster_path).map(transformMovie);
-        totalPages = Math.min(result.total_pages, 500);
-      } else {
-        const result = await fetchTMDB("/search/tv", apiKey, { query: search, page });
-        data = result.results.filter((item: any) => item.poster_path).map((item: any) => transformSeries(item));
-        totalPages = Math.min(result.total_pages, 500);
+      // Search across multiple pages for better results
+      const searchPages = [1, 2, 3].map(p => 
+        category === "movies" 
+          ? fetchTMDB("/search/movie", apiKey, { query: search, page: String(p) })
+          : fetchTMDB("/search/tv", apiKey, { query: search, page: String(p) })
+      );
+      
+      const results = await Promise.all(searchPages);
+      const seenIds = new Set<string>();
+      
+      for (const result of results) {
+        for (const item of result.results || []) {
+          if (!item.poster_path) continue;
+          const media = category === "movies" ? transformMovie(item) : transformSeries(item);
+          if (!seenIds.has(media.id)) {
+            seenIds.add(media.id);
+            data.push(media);
+          }
+        }
+        totalPages = Math.max(totalPages, Math.min(result.total_pages, 500));
       }
     }
     // Genre filter mode
     else if (genre) {
-      if (category === "movies") {
-        const result = await fetchTMDB("/discover/movie", apiKey, { 
-          with_genres: genre, 
-          page,
-          sort_by: "popularity.desc"
-        });
-        data = result.results.filter((item: any) => item.poster_path).map(transformMovie);
-        totalPages = Math.min(result.total_pages, 500);
-      } else {
-        const result = await fetchTMDB("/discover/tv", apiKey, { 
-          with_genres: genre, 
-          page,
-          sort_by: "popularity.desc"
-        });
-        data = result.results.filter((item: any) => item.poster_path).map((item: any) => transformSeries(item));
-        totalPages = Math.min(result.total_pages, 500);
+      const genrePages = [pageNum, pageNum + 1, pageNum + 2].map(p => {
+        if (category === "movies") {
+          return fetchTMDB("/discover/movie", apiKey, { 
+            with_genres: genre, 
+            page: String(p),
+            sort_by: "popularity.desc"
+          });
+        } else {
+          return fetchTMDB("/discover/tv", apiKey, { 
+            with_genres: genre, 
+            page: String(p),
+            sort_by: "popularity.desc"
+          });
+        }
+      });
+
+      const results = await Promise.all(genrePages);
+      const seenIds = new Set<string>();
+      
+      for (const result of results) {
+        for (const item of result.results || []) {
+          if (!item.poster_path) continue;
+          const media = category === "movies" ? transformMovie(item) : transformSeries(item);
+          if (!seenIds.has(media.id)) {
+            seenIds.add(media.id);
+            data.push(media);
+          }
+        }
+        totalPages = Math.max(totalPages, Math.min(result.total_pages, 500));
       }
     }
-    // Full catalog mode
+    // Full catalog mode - MASSIVELY EXPANDED
     else {
       if (category === "movies") {
         const sources = await Promise.all([
+          // Main endpoints
           fetchTMDB("/movie/popular", apiKey, { page }),
           fetchTMDB("/movie/top_rated", apiKey, { page }),
           fetchTMDB("/movie/now_playing", apiKey, { page }),
           fetchTMDB("/movie/upcoming", apiKey, { page }),
+          fetchTMDB("/trending/movie/day", apiKey, { page }),
           fetchTMDB("/trending/movie/week", apiKey, { page }),
+          
+          // All movie genres
           fetchTMDB("/discover/movie", apiKey, { with_genres: "28", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/movie", apiKey, { with_genres: "35", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/movie", apiKey, { with_genres: "18", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/movie", apiKey, { with_genres: "27", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/movie", apiKey, { with_genres: "878", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/movie", apiKey, { with_genres: "10749", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/movie", apiKey, { with_genres: "53", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/movie", apiKey, { with_genres: "16", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/movie", apiKey, { with_genres: "14", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/movie", apiKey, { with_genres: "12", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "16", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "35", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/movie", apiKey, { with_genres: "80", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "18", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/movie", apiKey, { with_genres: "10751", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "14", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "36", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "27", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "10402", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/movie", apiKey, { with_genres: "9648", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "10749", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "878", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "10770", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "53", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/movie", apiKey, { with_genres: "10752", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/movie", apiKey, { with_genres: "37", page, sort_by: "popularity.desc" }),
+          
+          // By language
+          fetchTMDB("/discover/movie", apiKey, { with_original_language: "fr", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_original_language: "es", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_original_language: "de", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_original_language: "it", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_original_language: "ja", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_original_language: "ko", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_original_language: "hi", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_original_language: "pt", page, sort_by: "popularity.desc" }),
+          
+          // By decade
+          fetchTMDB("/discover/movie", apiKey, { "primary_release_date.gte": "2020-01-01", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { "primary_release_date.gte": "2010-01-01", "primary_release_date.lte": "2019-12-31", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { "primary_release_date.gte": "2000-01-01", "primary_release_date.lte": "2009-12-31", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { "primary_release_date.gte": "1990-01-01", "primary_release_date.lte": "1999-12-31", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { "primary_release_date.gte": "1980-01-01", "primary_release_date.lte": "1989-12-31", page, sort_by: "popularity.desc" }),
+          
+          // High rated
+          fetchTMDB("/discover/movie", apiKey, { "vote_average.gte": "8", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { "vote_average.gte": "7", "vote_count.gte": "1000", page, sort_by: "vote_average.desc" }),
+          
+          // Revenue
+          fetchTMDB("/discover/movie", apiKey, { page, sort_by: "revenue.desc" }),
         ]);
         
         const seenIds = new Set<string>();
@@ -189,31 +304,93 @@ serve(async (req) => {
         totalPages = 500;
       } 
       else if (category === "series") {
+        // Get network chunks to avoid too many parallel requests
+        const networkChunk1 = TV_NETWORKS.slice(0, 15);
+        const networkChunk2 = TV_NETWORKS.slice(15, 30);
+        
         const sources = await Promise.all([
+          // Main endpoints
           fetchTMDB("/tv/popular", apiKey, { page }),
           fetchTMDB("/tv/top_rated", apiKey, { page }),
           fetchTMDB("/tv/on_the_air", apiKey, { page }),
           fetchTMDB("/tv/airing_today", apiKey, { page }),
+          fetchTMDB("/trending/tv/day", apiKey, { page }),
           fetchTMDB("/trending/tv/week", apiKey, { page }),
-          fetchTMDB("/discover/tv", apiKey, { with_genres: "18", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_genres: "35", page, sort_by: "popularity.desc" }),
+          
+          // All TV genres
           fetchTMDB("/discover/tv", apiKey, { with_genres: "10759", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_genres: "10765", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "35", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_genres: "80", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_genres: "9648", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "18", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_genres: "10751", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_genres: "10762", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_genres: "10766", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "9648", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "10763", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_genres: "10764", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_networks: "43", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_networks: "44", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_networks: "213", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_networks: "2739", page, sort_by: "popularity.desc" }),
-          fetchTMDB("/discover/tv", apiKey, { with_original_language: "es", with_genres: "10766", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "10765", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "10766", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "10767", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "10768", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "37", page, sort_by: "popularity.desc" }),
+          
+          // By language - for international shows like Chica Vampiro
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "es", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "fr", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "de", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "it", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "pt", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "ja", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "ko", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "zh", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "ar", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "hi", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "tr", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "ru", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "pl", page, sort_by: "popularity.desc" }),
+          
+          // Spanish language kids/teen shows (like Chica Vampiro)
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "es", with_genres: "10762", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "es", with_genres: "10751", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "es", with_genres: "35", page, sort_by: "popularity.desc" }),
+          
+          // Latin American content
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "CO", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "MX", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "AR", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "BR", page, sort_by: "popularity.desc" }),
+          
+          // By networks - chunk 1
+          ...networkChunk1.map(id => 
+            fetchTMDB("/discover/tv", apiKey, { with_networks: String(id), page, sort_by: "popularity.desc" })
+          ),
+          
+          // By decade
+          fetchTMDB("/discover/tv", apiKey, { "first_air_date.gte": "2020-01-01", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { "first_air_date.gte": "2010-01-01", "first_air_date.lte": "2019-12-31", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { "first_air_date.gte": "2000-01-01", "first_air_date.lte": "2009-12-31", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { "first_air_date.gte": "1990-01-01", "first_air_date.lte": "1999-12-31", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { "first_air_date.gte": "1980-01-01", "first_air_date.lte": "1989-12-31", page, sort_by: "popularity.desc" }),
+          
+          // High rated
+          fetchTMDB("/discover/tv", apiKey, { "vote_average.gte": "8", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { "vote_average.gte": "7", "vote_count.gte": "500", page, sort_by: "vote_average.desc" }),
+          
+          // Long running shows
+          fetchTMDB("/discover/tv", apiKey, { "with_status": "0", page, sort_by: "popularity.desc" }),
+          
+          // Returning series
+          fetchTMDB("/discover/tv", apiKey, { "with_status": "0", page, sort_by: "first_air_date.desc" }),
         ]);
         
+        // Second batch of networks
+        const networkSources2 = await Promise.all(
+          networkChunk2.map(id => 
+            fetchTMDB("/discover/tv", apiKey, { with_networks: String(id), page, sort_by: "popularity.desc" })
+          )
+        );
+        
         const seenIds = new Set<string>();
-        for (const result of sources) {
+        for (const result of [...sources, ...networkSources2]) {
           for (const item of result.results || []) {
             if (!item.poster_path) continue;
             const series = transformSeries(item);
@@ -229,14 +406,27 @@ serve(async (req) => {
         const sources = await Promise.all([
           fetchTMDB("/discover/tv", apiKey, { with_genres: "16", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_genres: "16", with_original_language: "ja", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "16", with_original_language: "ja", page, sort_by: "vote_average.desc" }),
           fetchTMDB("/discover/movie", apiKey, { with_genres: "16", with_original_language: "ja", page }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "16", with_original_language: "ja", page, sort_by: "vote_average.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_keywords: "210024", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_keywords: "210024", page, sort_by: "vote_average.desc" }),
+          fetchTMDB("/trending/tv/week", apiKey, { page }),
+          // Different decades
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "16", with_original_language: "ja", "first_air_date.gte": "2020-01-01", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "16", with_original_language: "ja", "first_air_date.gte": "2010-01-01", "first_air_date.lte": "2019-12-31", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "16", with_original_language: "ja", "first_air_date.gte": "2000-01-01", "first_air_date.lte": "2009-12-31", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "16", with_original_language: "ja", "first_air_date.gte": "1990-01-01", "first_air_date.lte": "1999-12-31", page }),
         ]);
         
         const seenIds = new Set<string>();
         for (const result of sources) {
           for (const item of result.results || []) {
             if (!item.poster_path) continue;
+            const isJapanese = item.original_language === 'ja';
+            const hasAnimation = (item.genre_ids || []).includes(16);
+            if (!isJapanese && !hasAnimation) continue;
+            
             const anime = item.title ? transformMovie(item) : transformSeries(item, 'anime');
             anime.type = 'anime';
             if (!seenIds.has(anime.id)) {
@@ -251,6 +441,15 @@ serve(async (req) => {
         const sources = await Promise.all([
           fetchTMDB("/discover/movie", apiKey, { with_genres: "99", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_genres: "99", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "99", page, sort_by: "vote_average.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "99", page, sort_by: "vote_average.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "99", page, sort_by: "release_date.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "99", page, sort_by: "first_air_date.desc" }),
+          // Different languages
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "99", with_original_language: "en", page }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "99", with_original_language: "fr", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "99", with_original_language: "en", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "99", with_original_language: "fr", page }),
         ]);
         
         const seenIds = new Set<string>();

@@ -12,8 +12,6 @@ export function useTMDBMedia() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
-  const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   
   const currentPage = useRef(1);
@@ -48,7 +46,8 @@ export function useTMDBMedia() {
     currentPage.current = 1;
 
     try {
-      const initialPages = 15;
+      // Load more initial pages for better coverage
+      const initialPages = 20;
       const moviePromises = Array.from({ length: initialPages }, (_, i) => fetchPage('movies', i + 1));
       const seriesPromises = Array.from({ length: initialPages }, (_, i) => fetchPage('series', i + 1));
       const animePromises = Array.from({ length: initialPages }, (_, i) => fetchPage('animes', i + 1));
@@ -110,14 +109,10 @@ export function useTMDBMedia() {
     }
   }, [isLoadingMore, hasMore, fetchPage]);
 
-  // Real-time TMDB search
-  const search = useCallback(async (query: string, category: 'movies' | 'series') => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
+  // Real-time TMDB search - returns results directly
+  const searchTMDB = useCallback(async (query: string, category: 'movies' | 'series'): Promise<MediaItem[]> => {
+    if (!query.trim()) return [];
 
-    setIsSearching(true);
     try {
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/tmdb-api?category=${category}&search=${encodeURIComponent(query)}&page=1`
@@ -125,17 +120,13 @@ export function useTMDBMedia() {
       const result = await response.json();
       
       if (result.success && result.data) {
-        setSearchResults(result.data);
+        return result.data;
       }
+      return [];
     } catch (err) {
       console.error('Search error:', err);
-    } finally {
-      setIsSearching(false);
+      return [];
     }
-  }, []);
-
-  const clearSearch = useCallback(() => {
-    setSearchResults([]);
   }, []);
 
   // Auto-update every hour
@@ -182,10 +173,7 @@ export function useTMDBMedia() {
     refetch: loadInitialData,
     loadMore,
     hasMore,
-    searchResults,
-    isSearching,
-    search,
-    clearSearch,
+    searchTMDB,
     lastUpdate,
   };
 }
