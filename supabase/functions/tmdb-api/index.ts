@@ -567,6 +567,235 @@ serve(async (req) => {
               fetchTMDB("/discover/movie", apiKey, { page, with_genres: "36", sort_by: "popularity.desc" }),
             ];
             break;
+          
+          // ========== SERIES COLLECTIONS ==========
+          case 'series_trending':
+            smartSources = [
+              fetchTMDB("/trending/tv/day", apiKey, { page }),
+              fetchTMDB("/trending/tv/week", apiKey, { page }),
+            ];
+            break;
+          case 'series_popular':
+            smartSources = [fetchTMDB("/tv/popular", apiKey, { page })];
+            break;
+          case 'series_top_rated':
+            smartSources = [fetchTMDB("/tv/top_rated", apiKey, { page })];
+            break;
+          case 'series_airing':
+            smartSources = [
+              fetchTMDB("/tv/on_the_air", apiKey, { page }),
+              fetchTMDB("/tv/airing_today", apiKey, { page }),
+            ];
+            break;
+          case 'series_new':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, sort_by: "first_air_date.desc", "first_air_date.lte": new Date().toISOString().split('T')[0], "vote_count.gte": "10" }),
+            ];
+            break;
+          
+          // K-Drama Collections
+          case 'kdrama_popular':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "ko", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'kdrama_romance':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "ko", with_genres: "10749", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'kdrama_thriller':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "ko", with_genres: "80", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'kdrama_historical':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "ko", with_keywords: "12565", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'kdrama_fantasy':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "ko", with_genres: "10765", sort_by: "popularity.desc" }),
+            ];
+            break;
+          
+          // Series Platform Collections
+          case 'netflix_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "213", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'disney_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "2739", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'hbo_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "49", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'prime_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "1024", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'apple_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "2552", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'paramount_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "4330", sort_by: "popularity.desc" }),
+            ];
+            break;
+          
+          // International Series Collections
+          case 'turkish_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "tr", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'spanish_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "es", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'british_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_origin_country: "GB", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'french_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "fr", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'japanese_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "ja", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'latino_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_origin_country: "CO", sort_by: "popularity.desc" }),
+              fetchTMDB("/discover/tv", apiKey, { page, with_origin_country: "MX", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'chinese_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_original_language: "zh", sort_by: "popularity.desc" }),
+            ];
+            break;
+          
+          // Series Genre Collections
+          case 'series_drama':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "18", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_comedy':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "35", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_crime':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "80", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_scifi':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "10765", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_fantasy':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "10765", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_horror':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_keywords: "6152", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_thriller':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_keywords: "9715", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_action':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "10759", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_mystery':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "9648", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_romance':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_keywords: "9840", sort_by: "popularity.desc" }),
+            ];
+            break;
+          
+          // Classic TV Collections
+          case 'series_classic':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, "first_air_date.lte": "2010-12-31", sort_by: "vote_average.desc", "vote_count.gte": "500" }),
+            ];
+            break;
+          case 'series_sitcom':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "35", with_keywords: "9716", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_medical':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_keywords: "9626", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_legal':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_keywords: "10231", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'series_teen':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_keywords: "10683", sort_by: "popularity.desc" }),
+            ];
+            break;
+          
+          // Animation Collections
+          case 'anime_popular':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "16", with_original_language: "ja", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'anime_action':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "16,10759", with_original_language: "ja", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'anime_romance':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "16", with_original_language: "ja", with_keywords: "9840", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'anime_fantasy':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "16,10765", with_original_language: "ja", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'cartoon_series':
+            smartSources = [
+              fetchTMDB("/discover/tv", apiKey, { page, with_genres: "16", sort_by: "popularity.desc" }),
+            ];
+            break;
+          
           default:
             smartSources = [fetchTMDB("/movie/popular", apiKey, { page })];
         }

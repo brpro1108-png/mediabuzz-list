@@ -1,13 +1,15 @@
 import { useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Film, Tv } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Category } from '@/types/media';
 
 interface SmartCollectionBarProps {
   activeSmartCategory: string | null;
   onSmartCategoryChange: (category: string | null) => void;
+  mediaCategory: Category;
 }
 
-// Group collections by category
-const COLLECTION_CATEGORIES = [
+// Movie collection categories
+const MOVIE_CATEGORIES = [
   'Tous',
   'Tendances',
   'Box Office',
@@ -20,7 +22,19 @@ const COLLECTION_CATEGORIES = [
   'Spécial',
 ];
 
-export const SmartCollectionBar = ({ activeSmartCategory, onSmartCategoryChange }: SmartCollectionBarProps) => {
+// Series collection categories
+const SERIES_CATEGORIES = [
+  'Tous',
+  'Tendances Séries',
+  'K-Drama',
+  'Plateformes',
+  'International',
+  'Genres',
+  'Classiques TV',
+  'Animations',
+];
+
+export const SmartCollectionBar = ({ activeSmartCategory, onSmartCategoryChange, mediaCategory }: SmartCollectionBarProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = (direction: 'left' | 'right') => {
@@ -29,6 +43,8 @@ export const SmartCollectionBar = ({ activeSmartCategory, onSmartCategoryChange 
       scrollRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
     }
   };
+
+  const categories = mediaCategory === 'films' ? MOVIE_CATEGORIES : SERIES_CATEGORIES;
 
   return (
     <div className="mb-6">
@@ -45,7 +61,7 @@ export const SmartCollectionBar = ({ activeSmartCategory, onSmartCategoryChange 
           ref={scrollRef}
           className="flex items-center gap-2 overflow-x-auto px-10 pb-2 scrollbar-hide"
         >
-          {COLLECTION_CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <button
               key={cat}
               onClick={() => onSmartCategoryChange(cat === 'Tous' ? null : cat)}
