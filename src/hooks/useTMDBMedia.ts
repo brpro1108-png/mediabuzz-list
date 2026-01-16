@@ -23,7 +23,7 @@ export function useTMDBMedia() {
   const fetchPage = useCallback(async (category: string, page: number, withCollections = false): Promise<MediaItem[]> => {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const timeout = setTimeout(() => controller.abort(), 15000);
       
       const url = `${SUPABASE_URL}/functions/v1/tmdb-api?category=${category}&page=${page}${withCollections ? '&collections=true' : ''}`;
       const response = await fetch(url, { signal: controller.signal });
@@ -49,7 +49,7 @@ export function useTMDBMedia() {
   const fetchSmartCollection = useCallback(async (collectionId: string, page = 1): Promise<MediaItem[]> => {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 10000);
       
       const url = `${SUPABASE_URL}/functions/v1/tmdb-api?category=movies&smart=${collectionId}&page=${page}&collections=true`;
       const response = await fetch(url, { signal: controller.signal });
@@ -75,7 +75,7 @@ export function useTMDBMedia() {
     setDocs([]);
 
     try {
-      // Load first 8 pages quickly
+      // Load first 8 pages quickly with collections
       const pagesToLoad = [1, 2, 3, 4, 5, 6, 7, 8];
       
       const [movieResults, seriesResults, animeResults, docResults] = await Promise.all([
@@ -93,19 +93,36 @@ export function useTMDBMedia() {
       loadedPages.current = { movies: 8, series: 8, animes: 8, docs: 8 };
       setIsLoading(false);
       
-      // Load smart collections in background
-      const smartCollectionIds = Object.keys(SMART_COLLECTIONS);
+      // Load smart collections in background - prioritize most important ones
+      const priorityCollections = [
+        'trending', 'now_playing', 'upcoming', 'top_rated',
+        'box_office_2024', 'box_office_2023', 'box_office_2022',
+        'harrypotter', 'lotr', 'starwars', 'marvel', 'dc',
+        'kdrama', 'netflix', 'disney', 'pixar',
+      ];
+      
       const smartResults: Record<string, MediaItem[]> = {};
       
-      for (let i = 0; i < smartCollectionIds.length; i += 4) {
-        const batch = smartCollectionIds.slice(i, i + 4);
+      for (let i = 0; i < priorityCollections.length; i += 4) {
+        const batch = priorityCollections.slice(i, i + 4);
         const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
         batch.forEach((id, idx) => {
           smartResults[id] = results[idx];
         });
+        setSmartCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
       }
       
-      setSmartCollections(smartResults);
+      // Load remaining collections
+      const remainingCollections = Object.keys(SMART_COLLECTIONS).filter(id => !priorityCollections.includes(id));
+      for (let i = 0; i < remainingCollections.length; i += 5) {
+        const batch = remainingCollections.slice(i, i + 5);
+        const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
+        batch.forEach((id, idx) => {
+          smartResults[id] = results[idx];
+        });
+        setSmartCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
+      }
+      
       setLastUpdate(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de chargement');
@@ -138,6 +155,8 @@ export function useTMDBMedia() {
         animes: newPage,
         docs: newPage,
       };
+      
+      setLastUpdate(new Date());
     } catch (err) {
       console.error('Fast update error:', err);
     }
@@ -151,7 +170,6 @@ export function useTMDBMedia() {
     console.log('🔄 Major update: fetching more content...');
     
     try {
-      // Fetch 10 new pages
       const currentMax = loadedPages.current.movies;
       
       for (let i = 0; i < 10; i++) {
@@ -179,18 +197,15 @@ export function useTMDBMedia() {
         await new Promise(r => setTimeout(r, 100));
       }
       
-      // Update smart collections
-      const smartCollectionIds = Object.keys(SMART_COLLECTIONS);
-      for (const id of smartCollectionIds.slice(0, 5)) {
-        const results = await fetchSmartCollection(id, 2);
-        setSmartCollections(prev => ({
-          ...prev,
-          [id]: [...(prev[id] || []), ...results.filter(r => !prev[id]?.some(p => p.id === r.id))],
-        }));
+      // Refresh smart collections
+      const collectionsToRefresh = ['trending', 'now_playing', 'upcoming'];
+      for (const id of collectionsToRefresh) {
+        const results = await fetchSmartCollection(id);
+        setSmartCollections(prev => ({ ...prev, [id]: results }));
       }
       
       setLastUpdate(new Date());
-      console.log(`✅ Major update complete. Pages loaded: ${loadedPages.current.movies}`);
+      console.log(`✅ Major update complete. Pages: ${loadedPages.current.movies}`);
     } catch (err) {
       console.error('Major update error:', err);
     } finally {
@@ -204,7 +219,7 @@ export function useTMDBMedia() {
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeout = setTimeout(() => controller.abort(), 10000);
       
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/tmdb-api?category=${category}&search=${encodeURIComponent(query)}&page=1&collections=true`,
