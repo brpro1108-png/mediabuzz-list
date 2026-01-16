@@ -1,13 +1,15 @@
 import { MediaItem } from '@/types/media';
 import { YTMediaCard } from './YTMediaCard';
+import { ViewMode } from './YTChips';
 
 interface YTGridProps {
   items: MediaItem[];
   isUploaded: (id: string) => boolean;
   onToggleUpload: (id: string) => void;
+  viewMode: ViewMode;
 }
 
-export const YTGrid = ({ items, isUploaded, onToggleUpload }: YTGridProps) => {
+export const YTGrid = ({ items, isUploaded, onToggleUpload, viewMode }: YTGridProps) => {
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -22,14 +24,21 @@ export const YTGrid = ({ items, isUploaded, onToggleUpload }: YTGridProps) => {
     );
   }
 
+  const gridClass = {
+    normal: 'yt-grid',
+    compact: 'yt-grid-compact',
+    list: 'yt-grid-list',
+  }[viewMode];
+
   return (
-    <div className="yt-grid">
+    <div className={gridClass}>
       {items.map((item) => (
         <YTMediaCard
           key={item.id}
           media={item}
           isUploaded={isUploaded(item.id)}
           onToggleUpload={() => onToggleUpload(item.id)}
+          viewMode={viewMode}
         />
       ))}
     </div>
