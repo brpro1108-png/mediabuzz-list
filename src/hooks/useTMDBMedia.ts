@@ -30,6 +30,9 @@ const ALL_SERIES_COLLECTIONS = [
   'anime_popular', 'anime_action', 'anime_romance', 'anime_fantasy', 'cartoon_series',
 ];
 
+// Number of pages to fetch per collection (more pages = more content)
+const PAGES_PER_COLLECTION = 10;
+
 export function useTMDBMedia() {
   const [movies, setMovies] = useState<MediaItem[]>([]);
   const [series, setSeries] = useState<MediaItem[]>([]);
@@ -73,36 +76,66 @@ export function useTMDBMedia() {
     }
   }, []);
 
-  // Fetch smart collection (movie or series)
-  const fetchSmartCollection = useCallback(async (collectionId: string, page = 1): Promise<MediaItem[]> => {
+  // Fetch smart collection with multiple pages
+  const fetchSmartCollection = useCallback(async (collectionId: string): Promise<MediaItem[]> => {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const allItems: MediaItem[] = [];
+      const seenCollectionIds = new Set<string>();
+
+      // Fetch multiple pages for each collection
+      for (let page = 1; page <= PAGES_PER_COLLECTION; page++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        
+        const url = `${SUPABASE_URL}/functions/v1/tmdb-api?category=movies&smart=${collectionId}&page=${page}&collections=true`;
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        
+        const result = await response.json();
+        if (result.success && result.data) {
+          for (const item of result.data) {
+            if (!seenCollectionIds.has(item.id)) {
+              seenCollectionIds.add(item.id);
+              allItems.push(item);
+            }
+          }
+        }
+      }
       
-      const url = `${SUPABASE_URL}/functions/v1/tmdb-api?category=movies&smart=${collectionId}&page=${page}&collections=true`;
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-      
-      const result = await response.json();
-      return result.success && result.data ? result.data : [];
+      return allItems;
     } catch (err) {
       console.error(`Error fetching smart collection ${collectionId}:`, err);
       return [];
     }
   }, []);
 
-  // Fetch series collection
-  const fetchSeriesCollection = useCallback(async (collectionId: string, page = 1): Promise<MediaItem[]> => {
+  // Fetch series collection with multiple pages
+  const fetchSeriesCollection = useCallback(async (collectionId: string): Promise<MediaItem[]> => {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
+      const allItems: MediaItem[] = [];
+      const seenCollectionIds = new Set<string>();
+
+      // Fetch multiple pages for each collection
+      for (let page = 1; page <= PAGES_PER_COLLECTION; page++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        
+        const url = `${SUPABASE_URL}/functions/v1/tmdb-api?category=series&smart=${collectionId}&page=${page}`;
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        
+        const result = await response.json();
+        if (result.success && result.data) {
+          for (const item of result.data) {
+            if (!seenCollectionIds.has(item.id)) {
+              seenCollectionIds.add(item.id);
+              allItems.push(item);
+            }
+          }
+        }
+      }
       
-      const url = `${SUPABASE_URL}/functions/v1/tmdb-api?category=series&smart=${collectionId}&page=${page}`;
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-      
-      const result = await response.json();
-      return result.success && result.data ? result.data : [];
+      return allItems;
     } catch (err) {
       console.error(`Error fetching series collection ${collectionId}:`, err);
       return [];
@@ -148,8 +181,8 @@ export function useTMDBMedia() {
       ];
       
       // Fetch priority movie collections
-      for (let i = 0; i < priorityMovieCollections.length; i += 5) {
-        const batch = priorityMovieCollections.slice(i, i + 5);
+      for (let i = 0; i < priorityMovieCollections.length; i += 3) {
+        const batch = priorityMovieCollections.slice(i, i + 3);
         const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
         setSmartCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
       }
@@ -163,24 +196,24 @@ export function useTMDBMedia() {
         'series_drama', 'series_comedy', 'series_crime',
       ];
       
-      for (let i = 0; i < prioritySeriesCollections.length; i += 5) {
-        const batch = prioritySeriesCollections.slice(i, i + 5);
+      for (let i = 0; i < prioritySeriesCollections.length; i += 3) {
+        const batch = prioritySeriesCollections.slice(i, i + 3);
         const results = await Promise.all(batch.map(id => fetchSeriesCollection(id)));
         setSeriesCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
       }
       
       // Load remaining movie collections
       const remainingMovieCollections = ALL_MOVIE_COLLECTIONS.filter(id => !priorityMovieCollections.includes(id));
-      for (let i = 0; i < remainingMovieCollections.length; i += 6) {
-        const batch = remainingMovieCollections.slice(i, i + 6);
+      for (let i = 0; i < remainingMovieCollections.length; i += 4) {
+        const batch = remainingMovieCollections.slice(i, i + 4);
         const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
         setSmartCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
       }
       
       // Load remaining series collections
       const remainingSeriesCollections = ALL_SERIES_COLLECTIONS.filter(id => !prioritySeriesCollections.includes(id));
-      for (let i = 0; i < remainingSeriesCollections.length; i += 6) {
-        const batch = remainingSeriesCollections.slice(i, i + 6);
+      for (let i = 0; i < remainingSeriesCollections.length; i += 4) {
+        const batch = remainingSeriesCollections.slice(i, i + 4);
         const results = await Promise.all(batch.map(id => fetchSeriesCollection(id)));
         setSeriesCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
       }
@@ -259,7 +292,7 @@ export function useTMDBMedia() {
         await new Promise(r => setTimeout(r, 100));
       }
       
-      // Refresh smart collections
+      // Refresh smart collections with more pages
       const movieCollectionsToRefresh = ['trending', 'now_playing', 'upcoming', 'box_office_2025'];
       for (const id of movieCollectionsToRefresh) {
         const results = await fetchSmartCollection(id);

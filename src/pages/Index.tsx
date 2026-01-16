@@ -8,7 +8,7 @@ import { MediaPagination } from '@/components/MediaPagination';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
 import { useTMDBMedia } from '@/hooks/useTMDBMedia';
 import { Category, MediaItem, ViewFilter, SMART_COLLECTIONS } from '@/types/media';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Save, CheckCircle, Cloud } from 'lucide-react';
 import { toast } from 'sonner';
 
 const ITEMS_PER_PAGE = 100;
@@ -67,7 +67,16 @@ const Index = () => {
   const [activeSmartCategory, setActiveSmartCategory] = useState<string | null>(null);
   const [collectionsPage, setCollectionsPage] = useState(1);
   
-  const { toggleUploaded, isUploaded, uploadedIds } = useUploadedMedia();
+  const { 
+    toggleUploaded, 
+    isUploaded, 
+    uploadedIds, 
+    syncToDatabase, 
+    isSyncing, 
+    lastSaved,
+    isLoggedIn 
+  } = useUploadedMedia();
+  
   const { 
     movies, 
     series, 
@@ -308,6 +317,51 @@ const Index = () => {
               )}
             </div>
             <div className="flex items-center gap-3">
+              {/* Save button */}
+              <button
+                onClick={async () => {
+                  const success = await syncToDatabase();
+                  if (success) {
+                    toast.success('Données sauvegardées avec succès!');
+                  } else {
+                    toast.error('Erreur de sauvegarde. Réessayez.');
+                  }
+                }}
+                disabled={isSyncing || !isLoggedIn}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  isSyncing 
+                    ? 'bg-primary/20 text-primary' 
+                    : lastSaved 
+                      ? 'bg-uploaded/20 text-uploaded hover:bg-uploaded/30' 
+                      : 'bg-secondary text-foreground hover:bg-primary/20 hover:text-primary'
+                } btn-glow`}
+                title={isLoggedIn ? 'Sauvegarder dans le cloud' : 'Connectez-vous pour sauvegarder'}
+              >
+                {isSyncing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sauvegarde...
+                  </>
+                ) : lastSaved ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Sauvegardé
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Sauvegarder
+                  </>
+                )}
+              </button>
+
+              {lastSaved && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Cloud className="w-3 h-3" />
+                  {lastSaved.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+
               <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
                 📄 {pagesLoaded} pages
               </span>
