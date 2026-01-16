@@ -1,7 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MediaItem, SMART_COLLECTIONS } from '@/types/media';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+// Local storage keys for media cache
+const CACHE_KEYS = {
+  movies: 'tmdb-cache-movies',
+  series: 'tmdb-cache-series',
+  animes: 'tmdb-cache-animes',
+  docs: 'tmdb-cache-docs',
+  loadState: 'tmdb-load-state',
+  smartCollections: 'tmdb-cache-smart',
+  seriesCollections: 'tmdb-cache-series-collections',
+};
 
 // Generate all box office years
 const BOX_OFFICE_YEARS = Array.from({ length: 36 }, (_, i) => `box_office_${2025 - i}`);
@@ -33,7 +46,35 @@ const ALL_SERIES_COLLECTIONS = [
 // Number of pages to fetch per collection (more pages = more content)
 const PAGES_PER_COLLECTION = 10;
 
+interface LoadState {
+  movies: number;
+  series: number;
+  animes: number;
+  docs: number;
+}
+
+// Helper to load from localStorage
+const loadFromCache = <T>(key: string): T | null => {
+  try {
+    const data = localStorage.getItem(key);
+    if (data) return JSON.parse(data);
+  } catch (e) {
+    console.error(`Failed to load cache ${key}:`, e);
+  }
+  return null;
+};
+
+// Helper to save to localStorage
+const saveToCache = (key: string, data: unknown) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.error(`Failed to save cache ${key}:`, e);
+  }
+};
+
 export function useTMDBMedia() {
+  const { user } = useAuth();
   const [movies, setMovies] = useState<MediaItem[]>([]);
   const [series, setSeries] = useState<MediaItem[]>([]);
   const [animes, setAnimes] = useState<MediaItem[]>([]);
@@ -45,10 +86,55 @@ export function useTMDBMedia() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [isAutoUpdating, setIsAutoUpdating] = useState(false);
   
-  const loadedPages = useRef({ movies: 0, series: 0, animes: 0, docs: 0 });
+  const loadedPages = useRef<LoadState>({ movies: 0, series: 0, animes: 0, docs: 0 });
   const seenIds = useRef(new Set<string>());
   const updateIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fastUpdateRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isInitialized = useRef(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Save state to database
+  const saveStateToDatabase = useCallback(async (state: LoadState) => {
+    if (!user) return;
+    
+    try {
+      const { error } = await supabase
+        .from('media_load_state')
+        .upsert({
+          user_id: user.id,
+          movies_pages: state.movies,
+          series_pages: state.series,
+          animes_pages: state.animes,
+          docs_pages: state.docs,
+        }, {
+          onConflict: 'user_id',
+        });
+      
+      if (error) console.error('Error saving load state:', error);
+    } catch (e) {
+      console.error('Failed to save state to database:', e);
+    }
+  }, [user]);
+
+  // Debounced save
+  const debouncedSave = useCallback((state: LoadState) => {
+    saveToCache(CACHE_KEYS.loadState, state);
+    
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveStateToDatabase(state);
+    }, 3000);
+  }, [saveStateToDatabase]);
+
+  // Save media cache periodically
+  const saveMediaCache = useCallback(() => {
+    saveToCache(CACHE_KEYS.movies, movies);
+    saveToCache(CACHE_KEYS.series, series);
+    saveToCache(CACHE_KEYS.animes, animes);
+    saveToCache(CACHE_KEYS.docs, docs);
+    saveToCache(CACHE_KEYS.smartCollections, smartCollections);
+    saveToCache(CACHE_KEYS.seriesCollections, seriesCollections);
+  }, [movies, series, animes, docs, smartCollections, seriesCollections]);
 
   // Optimized fetch with timeout
   const fetchPage = useCallback(async (category: string, page: number, withCollections = false): Promise<MediaItem[]> => {
@@ -82,7 +168,6 @@ export function useTMDBMedia() {
       const allItems: MediaItem[] = [];
       const seenCollectionIds = new Set<string>();
 
-      // Fetch multiple pages for each collection
       for (let page = 1; page <= PAGES_PER_COLLECTION; page++) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
@@ -115,7 +200,6 @@ export function useTMDBMedia() {
       const allItems: MediaItem[] = [];
       const seenCollectionIds = new Set<string>();
 
-      // Fetch multiple pages for each collection
       for (let page = 1; page <= PAGES_PER_COLLECTION; page++) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
@@ -142,80 +226,143 @@ export function useTMDBMedia() {
     }
   }, []);
 
-  // Load initial data
+  // Load initial data with cache restoration
   const loadInitialData = useCallback(async () => {
+    if (isInitialized.current) return;
+    isInitialized.current = true;
+    
     setIsLoading(true);
     setError(null);
-    seenIds.current.clear();
-    loadedPages.current = { movies: 0, series: 0, animes: 0, docs: 0 };
-    setMovies([]);
-    setSeries([]);
-    setAnimes([]);
-    setDocs([]);
+
+    // First: Load from localStorage cache immediately
+    const cachedMovies = loadFromCache<MediaItem[]>(CACHE_KEYS.movies);
+    const cachedSeries = loadFromCache<MediaItem[]>(CACHE_KEYS.series);
+    const cachedAnimes = loadFromCache<MediaItem[]>(CACHE_KEYS.animes);
+    const cachedDocs = loadFromCache<MediaItem[]>(CACHE_KEYS.docs);
+    const cachedLoadState = loadFromCache<LoadState>(CACHE_KEYS.loadState);
+    const cachedSmartCollections = loadFromCache<Record<string, MediaItem[]>>(CACHE_KEYS.smartCollections);
+    const cachedSeriesCollections = loadFromCache<Record<string, MediaItem[]>>(CACHE_KEYS.seriesCollections);
+
+    // Restore cached data if available
+    if (cachedMovies?.length) {
+      setMovies(cachedMovies);
+      cachedMovies.forEach(m => seenIds.current.add(m.id));
+    }
+    if (cachedSeries?.length) {
+      setSeries(cachedSeries);
+      cachedSeries.forEach(s => seenIds.current.add(s.id));
+    }
+    if (cachedAnimes?.length) {
+      setAnimes(cachedAnimes);
+      cachedAnimes.forEach(a => seenIds.current.add(a.id));
+    }
+    if (cachedDocs?.length) {
+      setDocs(cachedDocs);
+      cachedDocs.forEach(d => seenIds.current.add(d.id));
+    }
+    if (cachedSmartCollections) {
+      setSmartCollections(cachedSmartCollections);
+    }
+    if (cachedSeriesCollections) {
+      setSeriesCollections(cachedSeriesCollections);
+    }
+    
+    // Restore load state
+    if (cachedLoadState) {
+      loadedPages.current = cachedLoadState;
+    }
+
+    // If user is logged in, try to get state from database
+    if (user) {
+      try {
+        const { data, error: dbError } = await supabase
+          .from('media_load_state')
+          .select('movies_pages, series_pages, animes_pages, docs_pages')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (!dbError && data) {
+          const dbState = {
+            movies: data.movies_pages,
+            series: data.series_pages,
+            animes: data.animes_pages,
+            docs: data.docs_pages,
+          };
+          // Use the maximum of local and database state
+          loadedPages.current = {
+            movies: Math.max(loadedPages.current.movies, dbState.movies),
+            series: Math.max(loadedPages.current.series, dbState.series),
+            animes: Math.max(loadedPages.current.animes, dbState.animes),
+            docs: Math.max(loadedPages.current.docs, dbState.docs),
+          };
+        }
+      } catch (e) {
+        console.error('Failed to load state from database:', e);
+      }
+    }
+
+    // If we have cached data, mark as not loading
+    if (cachedMovies?.length || cachedSeries?.length) {
+      setIsLoading(false);
+      console.log(`✅ Restored from cache: ${cachedMovies?.length || 0} movies, ${cachedSeries?.length || 0} series, Pages: ${loadedPages.current.movies}`);
+    }
 
     try {
-      // Load first 8 pages quickly with collections
-      const pagesToLoad = [1, 2, 3, 4, 5, 6, 7, 8];
+      // Determine starting page (resume from where we left off)
+      const startPage = loadedPages.current.movies + 1;
       
-      const [movieResults, seriesResults, animeResults, docResults] = await Promise.all([
-        Promise.all(pagesToLoad.map(p => fetchPage('movies', p, true))),
-        Promise.all(pagesToLoad.map(p => fetchPage('series', p))),
-        Promise.all(pagesToLoad.map(p => fetchPage('animes', p))),
-        Promise.all(pagesToLoad.map(p => fetchPage('docs', p))),
-      ]);
+      // If no cache, load first 8 pages quickly
+      if (startPage <= 1) {
+        const pagesToLoad = [1, 2, 3, 4, 5, 6, 7, 8];
+        
+        const [movieResults, seriesResults, animeResults, docResults] = await Promise.all([
+          Promise.all(pagesToLoad.map(p => fetchPage('movies', p, true))),
+          Promise.all(pagesToLoad.map(p => fetchPage('series', p))),
+          Promise.all(pagesToLoad.map(p => fetchPage('animes', p))),
+          Promise.all(pagesToLoad.map(p => fetchPage('docs', p))),
+        ]);
 
-      setMovies(movieResults.flat());
-      setSeries(seriesResults.flat());
-      setAnimes(animeResults.flat());
-      setDocs(docResults.flat());
+        setMovies(prev => [...prev, ...movieResults.flat()]);
+        setSeries(prev => [...prev, ...seriesResults.flat()]);
+        setAnimes(prev => [...prev, ...animeResults.flat()]);
+        setDocs(prev => [...prev, ...docResults.flat()]);
+        
+        loadedPages.current = { movies: 8, series: 8, animes: 8, docs: 8 };
+        debouncedSave(loadedPages.current);
+      }
       
-      loadedPages.current = { movies: 8, series: 8, animes: 8, docs: 8 };
       setIsLoading(false);
       
-      // Load MOVIE smart collections in background
-      const priorityMovieCollections = [
-        'trending', 'now_playing', 'upcoming', 'top_rated',
-        'harrypotter', 'lotr', 'starwars', 'marvel', 'dc',
-        'box_office_2025', 'box_office_2024', 'box_office_2023',
-        'netflix', 'disney', 'pixar', 'dreamworks',
-      ];
-      
-      // Fetch priority movie collections
-      for (let i = 0; i < priorityMovieCollections.length; i += 3) {
-        const batch = priorityMovieCollections.slice(i, i + 3);
-        const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
-        setSmartCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
+      // Load smart collections if not cached
+      if (!cachedSmartCollections || Object.keys(cachedSmartCollections).length === 0) {
+        const priorityMovieCollections = [
+          'trending', 'now_playing', 'upcoming', 'top_rated',
+          'harrypotter', 'lotr', 'starwars', 'marvel', 'dc',
+          'box_office_2025', 'box_office_2024', 'box_office_2023',
+          'netflix', 'disney', 'pixar', 'dreamworks',
+        ];
+        
+        for (let i = 0; i < priorityMovieCollections.length; i += 3) {
+          const batch = priorityMovieCollections.slice(i, i + 3);
+          const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
+          setSmartCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
+        }
       }
       
-      // Load SERIES collections in background
-      const prioritySeriesCollections = [
-        'series_trending', 'series_popular', 'series_top_rated', 'series_airing',
-        'kdrama_popular', 'kdrama_romance',
-        'netflix_series', 'disney_series', 'hbo_series', 'prime_series',
-        'turkish_series', 'british_series', 'french_series',
-        'series_drama', 'series_comedy', 'series_crime',
-      ];
-      
-      for (let i = 0; i < prioritySeriesCollections.length; i += 3) {
-        const batch = prioritySeriesCollections.slice(i, i + 3);
-        const results = await Promise.all(batch.map(id => fetchSeriesCollection(id)));
-        setSeriesCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
-      }
-      
-      // Load remaining movie collections
-      const remainingMovieCollections = ALL_MOVIE_COLLECTIONS.filter(id => !priorityMovieCollections.includes(id));
-      for (let i = 0; i < remainingMovieCollections.length; i += 4) {
-        const batch = remainingMovieCollections.slice(i, i + 4);
-        const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
-        setSmartCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
-      }
-      
-      // Load remaining series collections
-      const remainingSeriesCollections = ALL_SERIES_COLLECTIONS.filter(id => !prioritySeriesCollections.includes(id));
-      for (let i = 0; i < remainingSeriesCollections.length; i += 4) {
-        const batch = remainingSeriesCollections.slice(i, i + 4);
-        const results = await Promise.all(batch.map(id => fetchSeriesCollection(id)));
-        setSeriesCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
+      if (!cachedSeriesCollections || Object.keys(cachedSeriesCollections).length === 0) {
+        const prioritySeriesCollections = [
+          'series_trending', 'series_popular', 'series_top_rated', 'series_airing',
+          'kdrama_popular', 'kdrama_romance',
+          'netflix_series', 'disney_series', 'hbo_series', 'prime_series',
+          'turkish_series', 'british_series', 'french_series',
+          'series_drama', 'series_comedy', 'series_crime',
+        ];
+        
+        for (let i = 0; i < prioritySeriesCollections.length; i += 3) {
+          const batch = prioritySeriesCollections.slice(i, i + 3);
+          const results = await Promise.all(batch.map(id => fetchSeriesCollection(id)));
+          setSeriesCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
+        }
       }
       
       setLastUpdate(new Date());
@@ -224,9 +371,9 @@ export function useTMDBMedia() {
     } finally {
       setIsLoading(false);
     }
-  }, [fetchPage, fetchSmartCollection, fetchSeriesCollection]);
+  }, [fetchPage, fetchSmartCollection, fetchSeriesCollection, debouncedSave, user]);
 
-  // Fast background fetch - runs every 5 seconds
+  // Fast background fetch - runs every 1 second
   const fetchMorePagesFast = useCallback(async () => {
     const currentMax = loadedPages.current.movies;
     const newPage = currentMax + 1;
@@ -251,11 +398,13 @@ export function useTMDBMedia() {
         docs: newPage,
       };
       
+      // Save state after each page load
+      debouncedSave(loadedPages.current);
       setLastUpdate(new Date());
     } catch (err) {
       console.error('Fast update error:', err);
     }
-  }, [fetchPage]);
+  }, [fetchPage, debouncedSave]);
 
   // Major update - runs every 30 minutes
   const performMajorUpdate = useCallback(async () => {
@@ -292,6 +441,8 @@ export function useTMDBMedia() {
         await new Promise(r => setTimeout(r, 100));
       }
       
+      debouncedSave(loadedPages.current);
+      
       // Refresh smart collections with more pages
       const movieCollectionsToRefresh = ['trending', 'now_playing', 'upcoming', 'box_office_2025'];
       for (const id of movieCollectionsToRefresh) {
@@ -312,7 +463,7 @@ export function useTMDBMedia() {
     } finally {
       setIsAutoUpdating(false);
     }
-  }, [fetchPage, fetchSmartCollection, fetchSeriesCollection, isAutoUpdating]);
+  }, [fetchPage, fetchSmartCollection, fetchSeriesCollection, isAutoUpdating, debouncedSave]);
 
   // Real-time TMDB search
   const searchTMDB = useCallback(async (query: string, category: 'movies' | 'series'): Promise<MediaItem[]> => {
@@ -335,6 +486,20 @@ export function useTMDBMedia() {
       return [];
     }
   }, []);
+
+  // Save cache periodically
+  useEffect(() => {
+    const interval = setInterval(saveMediaCache, 10000); // Every 10 seconds
+    return () => clearInterval(interval);
+  }, [saveMediaCache]);
+
+  // Save on unmount
+  useEffect(() => {
+    return () => {
+      saveMediaCache();
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [saveMediaCache]);
 
   useEffect(() => {
     loadInitialData();
