@@ -3,6 +3,9 @@ import { MediaItem, SMART_COLLECTIONS } from '@/types/media';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
+// Generate all box office years
+const BOX_OFFICE_YEARS = Array.from({ length: 36 }, (_, i) => `box_office_${2025 - i}`);
+
 export function useTMDBMedia() {
   const [movies, setMovies] = useState<MediaItem[]>([]);
   const [series, setSeries] = useState<MediaItem[]>([]);
@@ -96,15 +99,23 @@ export function useTMDBMedia() {
       // Load smart collections in background - prioritize most important ones
       const priorityCollections = [
         'trending', 'now_playing', 'upcoming', 'top_rated',
-        'box_office_2024', 'box_office_2023', 'box_office_2022',
-        'harrypotter', 'lotr', 'starwars', 'marvel', 'dc',
-        'kdrama', 'netflix', 'disney', 'pixar',
+        // Famous sagas
+        'harrypotter', 'lotr', 'hobbit', 'starwars', 'bond', 'fast', 'jurassic', 'mission', 'avengers', 'matrix',
+        // Box office recent years
+        'box_office_2025', 'box_office_2024', 'box_office_2023', 'box_office_2022', 'box_office_2021', 'box_office_2020',
+        // Studios
+        'marvel', 'dc', 'disney', 'pixar', 'dreamworks', 'ghibli', 'warner', 'universal',
+        // Platforms
+        'netflix', 'disneyplus', 'hbo', 'prime', 'appletv',
+        // International
+        'kdrama', 'french', 'korean', 'japanese',
       ];
       
       const smartResults: Record<string, MediaItem[]> = {};
       
-      for (let i = 0; i < priorityCollections.length; i += 4) {
-        const batch = priorityCollections.slice(i, i + 4);
+      // Fetch priority collections in batches
+      for (let i = 0; i < priorityCollections.length; i += 5) {
+        const batch = priorityCollections.slice(i, i + 5);
         const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
         batch.forEach((id, idx) => {
           smartResults[id] = results[idx];
@@ -112,10 +123,15 @@ export function useTMDBMedia() {
         setSmartCollections(prev => ({ ...prev, ...Object.fromEntries(batch.map((id, idx) => [id, results[idx]])) }));
       }
       
-      // Load remaining collections
-      const remainingCollections = Object.keys(SMART_COLLECTIONS).filter(id => !priorityCollections.includes(id));
-      for (let i = 0; i < remainingCollections.length; i += 5) {
-        const batch = remainingCollections.slice(i, i + 5);
+      // Load remaining collections (box office years, more sagas, etc.)
+      const allCollectionIds = [
+        ...BOX_OFFICE_YEARS,
+        ...Object.keys(SMART_COLLECTIONS),
+      ];
+      const remainingCollections = allCollectionIds.filter(id => !priorityCollections.includes(id));
+      
+      for (let i = 0; i < remainingCollections.length; i += 6) {
+        const batch = remainingCollections.slice(i, i + 6);
         const results = await Promise.all(batch.map(id => fetchSmartCollection(id)));
         batch.forEach((id, idx) => {
           smartResults[id] = results[idx];
@@ -198,7 +214,7 @@ export function useTMDBMedia() {
       }
       
       // Refresh smart collections
-      const collectionsToRefresh = ['trending', 'now_playing', 'upcoming'];
+      const collectionsToRefresh = ['trending', 'now_playing', 'upcoming', 'box_office_2025', 'box_office_2024'];
       for (const id of collectionsToRefresh) {
         const results = await fetchSmartCollection(id);
         setSmartCollections(prev => ({ ...prev, [id]: results }));

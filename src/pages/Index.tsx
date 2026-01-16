@@ -5,7 +5,7 @@ import { MediaList } from '@/components/MediaList';
 import { SmartCollectionBar } from '@/components/SmartCollectionBar';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
 import { useTMDBMedia } from '@/hooks/useTMDBMedia';
-import { Category, MediaItem } from '@/types/media';
+import { Category, MediaItem, ViewFilter } from '@/types/media';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -16,6 +16,7 @@ const Index = () => {
   const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
   const [uploadFilter, setUploadFilter] = useState<UploadFilter>('all');
   const [sortMode, setSortMode] = useState<SortMode>('default');
+  const [viewFilter, setViewFilter] = useState<ViewFilter>('all');
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'local' | 'tmdb'>('local');
@@ -40,7 +41,7 @@ const Index = () => {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeCategory, activeTypeFilter, uploadFilter, sortMode, selectedGenres, localSearchQuery]);
+  }, [activeCategory, activeTypeFilter, uploadFilter, sortMode, viewFilter, selectedGenres, localSearchQuery]);
 
   // Handle search item selection
   const handleSelectSearchItem = useCallback((item: MediaItem) => {
@@ -89,6 +90,11 @@ const Index = () => {
   const filteredItems = useMemo(() => {
     let result = [...currentItems];
 
+    // View filter - only show collections
+    if (viewFilter === 'collections') {
+      result = result.filter(item => item.collectionId && item.collectionName);
+    }
+
     // Local search filter
     if (localSearchQuery.trim()) {
       const query = localSearchQuery.toLowerCase();
@@ -128,7 +134,7 @@ const Index = () => {
     }
 
     return result;
-  }, [currentItems, localSearchQuery, selectedGenres, uploadFilter, sortMode, uploadedIds]);
+  }, [currentItems, viewFilter, localSearchQuery, selectedGenres, uploadFilter, sortMode, uploadedIds]);
 
   const getTitle = () => {
     if (activeTypeFilter === 'anime') return 'Animes';
@@ -169,6 +175,8 @@ const Index = () => {
         onUploadFilterChange={setUploadFilter}
         sortMode={sortMode}
         onSortModeChange={setSortMode}
+        viewFilter={viewFilter}
+        onViewFilterChange={setViewFilter}
         stats={stats}
         selectedGenres={selectedGenres}
         onGenreToggle={handleGenreToggle}
@@ -192,6 +200,11 @@ const Index = () => {
               <span className="text-sm text-muted-foreground">
                 {filteredItems.length.toLocaleString()} résultats
               </span>
+              {viewFilter === 'collections' && (
+                <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">
+                  Collections uniquement
+                </span>
+              )}
               {localSearchQuery && (
                 <span className="text-xs bg-accent text-foreground px-2 py-1 rounded-full">
                   Recherche: "{localSearchQuery}"

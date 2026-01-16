@@ -81,6 +81,37 @@ const FAMOUS_COLLECTIONS: Record<string, number> = {
   madmax: 8945,           // Mad Max
 };
 
+// Studio company IDs
+const STUDIO_IDS: Record<string, number> = {
+  marvel: 420,
+  dc: 9993,
+  disney: 2,
+  pixar: 3,
+  ghibli: 10342,
+  dreamworks: 7,
+  warner: 174,
+  universal: 33,
+  paramount: 4,
+  sony: 34,
+  lionsgate: 1632,
+  fox: 25,
+  mgm: 21,
+};
+
+// Network IDs for streaming platforms
+const PLATFORM_NETWORKS: Record<string, number> = {
+  netflix: 213,
+  disneyplus: 2739,
+  hbo: 49,
+  prime: 1024,
+  appletv: 2552,
+  hulu: 453,
+  peacock: 3186,
+  paramount_plus: 4330,
+  showtime: 67,
+  starz: 318,
+};
+
 // Optimized fetch
 async function fetchTMDB(endpoint: string, apiKey: string, params: Record<string, string> = {}) {
   const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
@@ -98,7 +129,7 @@ async function fetchTMDB(endpoint: string, apiKey: string, params: Record<string
   return response.json();
 }
 
-// Fetch movie details for collection info - optimized batch
+// Fetch movie details for collection info
 async function getMovieDetails(movieId: number, apiKey: string): Promise<{ collectionId?: number; collectionName?: string } | null> {
   try {
     const url = new URL(`${TMDB_BASE_URL}/movie/${movieId}`);
@@ -267,7 +298,43 @@ serve(async (req) => {
         const collectionMovies = await fetchCollection(FAMOUS_COLLECTIONS[smartCollectionType], apiKey);
         data = collectionMovies;
         totalPages = 1;
-      } else {
+      }
+      // Handle studios - fetch movies by company
+      else if (STUDIO_IDS[smartCollectionType]) {
+        const companyId = STUDIO_IDS[smartCollectionType];
+        smartSources = [
+          fetchTMDB("/discover/movie", apiKey, { page, with_companies: String(companyId), sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { page: String(pageNum + 1), with_companies: String(companyId), sort_by: "popularity.desc" }),
+        ];
+      }
+      // Handle streaming platforms - fetch series by network
+      else if (PLATFORM_NETWORKS[smartCollectionType]) {
+        const networkId = PLATFORM_NETWORKS[smartCollectionType];
+        smartSources = [
+          fetchTMDB("/discover/tv", apiKey, { page, with_networks: String(networkId), sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { page: String(pageNum + 1), with_networks: String(networkId), sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { page, with_watch_providers: String(networkId), watch_region: "FR", sort_by: "popularity.desc" }),
+        ];
+      }
+      // Handle box office by year
+      else if (smartCollectionType.startsWith('box_office_')) {
+        const year = smartCollectionType.replace('box_office_', '');
+        smartSources = [
+          fetchTMDB("/discover/movie", apiKey, { 
+            page, 
+            primary_release_year: year,
+            sort_by: "revenue.desc",
+            "vote_count.gte": "50"
+          }),
+          fetchTMDB("/discover/movie", apiKey, { 
+            page: String(pageNum + 1), 
+            primary_release_year: year,
+            sort_by: "revenue.desc",
+            "vote_count.gte": "50"
+          }),
+        ];
+      }
+      else {
         switch (smartCollectionType) {
           case 'trending':
             smartSources = [
@@ -289,91 +356,6 @@ serve(async (req) => {
             break;
           case 'top_rated':
             smartSources = [fetchTMDB("/movie/top_rated", apiKey, { page })];
-            break;
-          // Box Office by year
-          case 'box_office_2025':
-          case 'box_office_2024':
-          case 'box_office_2023':
-          case 'box_office_2022':
-          case 'box_office_2021':
-          case 'box_office_2020':
-          case 'box_office_2019':
-          case 'box_office_2018':
-          case 'box_office_2017':
-          case 'box_office_2016':
-          case 'box_office_2015':
-            const year = smartCollectionType.replace('box_office_', '');
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { 
-                page, 
-                primary_release_year: year,
-                sort_by: "revenue.desc",
-                "vote_count.gte": "50"
-              }),
-            ];
-            break;
-          case 'box_office_2010s':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { 
-                page, 
-                "primary_release_date.gte": "2010-01-01",
-                "primary_release_date.lte": "2014-12-31",
-                sort_by: "revenue.desc",
-                "vote_count.gte": "100"
-              }),
-            ];
-            break;
-          case 'box_office_2000s':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { 
-                page, 
-                "primary_release_date.gte": "2000-01-01",
-                "primary_release_date.lte": "2009-12-31",
-                sort_by: "revenue.desc",
-                "vote_count.gte": "100"
-              }),
-            ];
-            break;
-          case 'box_office_90s':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { 
-                page, 
-                "primary_release_date.gte": "1990-01-01",
-                "primary_release_date.lte": "1999-12-31",
-                sort_by: "revenue.desc",
-                "vote_count.gte": "100"
-              }),
-            ];
-            break;
-          case 'marvel':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { page, with_companies: "420", sort_by: "primary_release_date.desc" }),
-            ];
-            break;
-          case 'dc':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { page, with_companies: "9993", sort_by: "primary_release_date.desc" }),
-            ];
-            break;
-          case 'disney':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { page, with_companies: "2", sort_by: "popularity.desc" }),
-            ];
-            break;
-          case 'pixar':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { page, with_companies: "3", sort_by: "primary_release_date.desc" }),
-            ];
-            break;
-          case 'ghibli':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { page, with_companies: "10342", sort_by: "primary_release_date.desc" }),
-            ];
-            break;
-          case 'dreamworks':
-            smartSources = [
-              fetchTMDB("/discover/movie", apiKey, { page, with_companies: "7", sort_by: "popularity.desc" }),
-            ];
             break;
           case 'classics':
             smartSources = [
@@ -430,6 +412,31 @@ serve(async (req) => {
               fetchTMDB("/discover/movie", apiKey, { page, with_genres: "10402", sort_by: "popularity.desc" }),
             ];
             break;
+          case 'animation':
+            smartSources = [
+              fetchTMDB("/discover/movie", apiKey, { page, with_genres: "16", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'adventure':
+            smartSources = [
+              fetchTMDB("/discover/movie", apiKey, { page, with_genres: "12", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'crime':
+            smartSources = [
+              fetchTMDB("/discover/movie", apiKey, { page, with_genres: "80", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'mystery':
+            smartSources = [
+              fetchTMDB("/discover/movie", apiKey, { page, with_genres: "9648", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'western':
+            smartSources = [
+              fetchTMDB("/discover/movie", apiKey, { page, with_genres: "37", sort_by: "popularity.desc" }),
+            ];
+            break;
           case 'oscar':
             smartSources = [
               fetchTMDB("/discover/movie", apiKey, { 
@@ -441,12 +448,14 @@ serve(async (req) => {
             ];
             break;
           case 'palme':
+          case 'golden_globe':
+          case 'bafta':
             smartSources = [
               fetchTMDB("/discover/movie", apiKey, { 
                 page, 
-                with_original_language: "fr",
                 sort_by: "vote_average.desc",
-                "vote_count.gte": "500"
+                "vote_count.gte": "500",
+                "vote_average.gte": "7.5"
               }),
             ];
             break;
@@ -503,29 +512,29 @@ serve(async (req) => {
               fetchTMDB("/discover/tv", apiKey, { page, with_origin_country: "GB", sort_by: "popularity.desc" }),
             ];
             break;
-          case 'netflix':
+          case 'italian':
             smartSources = [
-              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "213", sort_by: "popularity.desc" }),
+              fetchTMDB("/discover/movie", apiKey, { page, with_original_language: "it", sort_by: "popularity.desc" }),
             ];
             break;
-          case 'disneyplus':
+          case 'german':
             smartSources = [
-              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "2739", sort_by: "popularity.desc" }),
+              fetchTMDB("/discover/movie", apiKey, { page, with_original_language: "de", sort_by: "popularity.desc" }),
             ];
             break;
-          case 'hbo':
+          case 'arabic':
             smartSources = [
-              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "49", sort_by: "popularity.desc" }),
+              fetchTMDB("/discover/movie", apiKey, { page, with_original_language: "ar", sort_by: "popularity.desc" }),
             ];
             break;
-          case 'prime':
+          case 'thai':
             smartSources = [
-              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "1024", sort_by: "popularity.desc" }),
+              fetchTMDB("/discover/movie", apiKey, { page, with_original_language: "th", sort_by: "popularity.desc" }),
             ];
             break;
-          case 'appletv':
+          case 'vietnamese':
             smartSources = [
-              fetchTMDB("/discover/tv", apiKey, { page, with_networks: "2552", sort_by: "popularity.desc" }),
+              fetchTMDB("/discover/movie", apiKey, { page, with_original_language: "vi", sort_by: "popularity.desc" }),
             ];
             break;
           case 'christmas':
@@ -543,28 +552,61 @@ serve(async (req) => {
               fetchTMDB("/discover/movie", apiKey, { page, with_keywords: "9715", sort_by: "popularity.desc" }),
             ];
             break;
+          case 'sports':
+            smartSources = [
+              fetchTMDB("/discover/movie", apiKey, { page, with_keywords: "6075", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'biography':
+            smartSources = [
+              fetchTMDB("/discover/movie", apiKey, { page, with_keywords: "9672", sort_by: "popularity.desc" }),
+            ];
+            break;
+          case 'historical':
+            smartSources = [
+              fetchTMDB("/discover/movie", apiKey, { page, with_genres: "36", sort_by: "popularity.desc" }),
+            ];
+            break;
           default:
             smartSources = [fetchTMDB("/movie/popular", apiKey, { page })];
         }
+      }
 
-        if (smartSources.length > 0) {
-          const results = await Promise.all(smartSources);
-          const seenIds = new Set<string>();
+      if (smartSources.length > 0) {
+        const results = await Promise.all(smartSources);
+        const seenIds = new Set<string>();
+        const movieIds: number[] = [];
 
-          for (const result of results) {
-            for (const item of result.results || []) {
-              if (!item.poster_path) continue;
-              const isSeries = item.name !== undefined;
-              const media = isSeries 
-                ? transformSeries(item, undefined, smartCollectionType)
-                : transformMovie(item, undefined, smartCollectionType);
-              if (!seenIds.has(media.id)) {
-                seenIds.add(media.id);
-                data.push(media);
+        for (const result of results) {
+          for (const item of result.results || []) {
+            if (!item.poster_path) continue;
+            const isSeries = item.name !== undefined;
+            const media = isSeries 
+              ? transformSeries(item, undefined, smartCollectionType)
+              : transformMovie(item, undefined, smartCollectionType);
+            if (!seenIds.has(media.id)) {
+              seenIds.add(media.id);
+              data.push(media);
+              if (!isSeries) movieIds.push(item.id);
+            }
+          }
+          totalPages = Math.max(totalPages, Math.min(result.total_pages || 1, 500));
+        }
+
+        // Fetch collection info for movies
+        if (withCollections && movieIds.length > 0) {
+          const collectionPromises = movieIds.slice(0, 30).map(id => getMovieDetails(id, apiKey));
+          const collectionResults = await Promise.all(collectionPromises);
+          let collectionIndex = 0;
+          data = data.map(item => {
+            if (item.type === 'movie' && collectionIndex < collectionResults.length) {
+              const collectionInfo = collectionResults[collectionIndex++];
+              if (collectionInfo) {
+                return { ...item, ...collectionInfo };
               }
             }
-            totalPages = Math.max(totalPages, Math.min(result.total_pages || 1, 500));
-          }
+            return item;
+          });
         }
       }
     }

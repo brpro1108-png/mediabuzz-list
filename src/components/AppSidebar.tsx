@@ -1,5 +1,5 @@
-import { Film, Tv, CheckCircle2, XCircle, Sparkles, FileText, TrendingUp, Clock } from 'lucide-react';
-import { Category } from '@/types/media';
+import { Film, Tv, CheckCircle2, XCircle, Sparkles, FileText, TrendingUp, Clock, Layers } from 'lucide-react';
+import { Category, ViewFilter } from '@/types/media';
 import { GenreFilter } from './GenreFilter';
 
 export type UploadFilter = 'all' | 'uploaded' | 'not_uploaded';
@@ -14,6 +14,8 @@ interface AppSidebarProps {
   onUploadFilterChange: (filter: UploadFilter) => void;
   sortMode: SortMode;
   onSortModeChange: (mode: SortMode) => void;
+  viewFilter: ViewFilter;
+  onViewFilterChange: (filter: ViewFilter) => void;
   stats: {
     totalFilms: number;
     totalSeries: number;
@@ -34,6 +36,8 @@ export const AppSidebar = ({
   onUploadFilterChange,
   sortMode,
   onSortModeChange,
+  viewFilter,
+  onViewFilterChange,
   stats,
   selectedGenres,
   onGenreToggle,
@@ -61,6 +65,11 @@ export const AppSidebar = ({
     { id: 'series', label: 'Séries TV', icon: Tv },
     { id: 'anime', label: 'Anime', icon: Sparkles },
     { id: 'documentary', label: 'Documentaires', icon: FileText },
+  ];
+
+  const viewFilters = [
+    { id: 'all' as ViewFilter, label: 'Tout', icon: null },
+    { id: 'collections' as ViewFilter, label: 'Collections uniquement', icon: Layers },
   ];
 
   const uploadFilters = [
@@ -126,6 +135,26 @@ export const AppSidebar = ({
                 <span>{(currentCategory.total - currentCategory.uploaded).toLocaleString()} restants</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* View filter (All vs Collections) */}
+        {activeCategory === 'films' && (
+          <div className="mb-6">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 px-2">
+              Affichage
+            </p>
+            {viewFilters.map((filter) => (
+              <div
+                key={filter.id}
+                onClick={() => onViewFilterChange(filter.id)}
+                className={`sidebar-item ${viewFilter === filter.id ? 'sidebar-item-active' : ''}`}
+              >
+                {filter.icon && <filter.icon className="w-4 h-4" />}
+                {!filter.icon && <div className="w-4" />}
+                <span>{filter.label}</span>
+              </div>
+            ))}
           </div>
         )}
 
