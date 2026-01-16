@@ -1,6 +1,7 @@
-import { RefreshCw, Film } from 'lucide-react';
+import { RefreshCw, Film, Search, X, Filter } from 'lucide-react';
 import { SearchDropdown } from './SearchDropdown';
 import { MediaItem, Category } from '@/types/media';
+import { useState } from 'react';
 
 interface AppHeaderProps {
   onSearch: (query: string, category: 'movies' | 'series') => Promise<MediaItem[]>;
@@ -11,6 +12,13 @@ interface AppHeaderProps {
   uploadedCount: number;
   isUploaded: (id: string) => boolean;
   activeCategory: Category;
+  // Normal search mode
+  localSearchQuery: string;
+  onLocalSearchChange: (query: string) => void;
+  searchMode: 'local' | 'tmdb';
+  onSearchModeChange: (mode: 'local' | 'tmdb') => void;
+  isAutoUpdating?: boolean;
+  currentPage?: number;
 }
 
 export const AppHeader = ({ 
@@ -22,13 +30,19 @@ export const AppHeader = ({
   uploadedCount,
   isUploaded,
   activeCategory,
+  localSearchQuery,
+  onLocalSearchChange,
+  searchMode,
+  onSearchModeChange,
+  isAutoUpdating,
+  currentPage,
 }: AppHeaderProps) => {
   const progress = totalMedia > 0 ? (uploadedCount / totalMedia) * 100 : 0;
 
   return (
     <header className="app-header">
       {/* Logo */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-shrink-0">
         <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
           <Film className="w-5 h-5 text-primary-foreground" />
         </div>
@@ -38,27 +52,85 @@ export const AppHeader = ({
         </div>
       </div>
 
-      {/* Search dropdown with real-time TMDB search */}
-      <SearchDropdown
-        onSearch={onSearch}
-        onSelectItem={onSelectSearchItem}
-        isUploaded={isUploaded}
-        activeCategory={activeCategory}
-      />
+      {/* Search area */}
+      <div className="flex-1 max-w-2xl mx-6 flex items-center gap-2">
+        {/* Search mode toggle */}
+        <div className="flex bg-secondary rounded-lg p-1 flex-shrink-0">
+          <button
+            onClick={() => onSearchModeChange('local')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              searchMode === 'local' 
+                ? 'bg-primary text-primary-foreground' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            title="Rechercher dans la liste actuelle"
+          >
+            <Filter className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => onSearchModeChange('tmdb')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              searchMode === 'tmdb' 
+                ? 'bg-primary text-primary-foreground' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            title="Recherche avancée TMDB"
+          >
+            <Search className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Conditional search input */}
+        {searchMode === 'local' ? (
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              value={localSearchQuery}
+              onChange={(e) => onLocalSearchChange(e.target.value)}
+              placeholder="Filtrer la liste..."
+              className="search-input pl-11 pr-10"
+            />
+            {localSearchQuery && (
+              <button
+                onClick={() => onLocalSearchChange('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-accent rounded"
+              >
+                <X className="w-4 h-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+        ) : (
+          <SearchDropdown
+            onSearch={onSearch}
+            onSelectItem={onSelectSearchItem}
+            isUploaded={isUploaded}
+            activeCategory={activeCategory}
+          />
+        )}
+      </div>
 
       {/* Progress + Actions */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4 flex-shrink-0">
+        {/* Auto-update indicator */}
+        {isAutoUpdating && (
+          <div className="flex items-center gap-2 text-xs text-primary">
+            <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+            <span>MAJ...</span>
+          </div>
+        )}
+        
         {/* Progress indicator */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <div className="text-right">
             <p className="text-sm font-medium text-foreground">
               {uploadedCount.toLocaleString()} / {totalMedia.toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground">
-              {progress.toFixed(1)}% uploadé
+              {progress.toFixed(1)}% • p.{currentPage || 0}
             </p>
           </div>
-          <div className="w-32">
+          <div className="w-24">
             <div className="progress-bar">
               <div 
                 className="progress-bar-fill"

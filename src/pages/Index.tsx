@@ -14,6 +14,8 @@ const Index = () => {
   const [uploadFilter, setUploadFilter] = useState<UploadFilter>('all');
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'local' | 'tmdb'>('local');
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const { toggleUploaded, isUploaded, uploadedIds } = useUploadedMedia();
@@ -29,7 +31,9 @@ const Index = () => {
     loadMore, 
     hasMore,
     searchTMDB,
-    lastUpdate
+    lastUpdate,
+    isAutoUpdating,
+    currentPage,
   } = useTMDBMedia();
 
   // Handle search item selection
@@ -79,6 +83,18 @@ const Index = () => {
   const filteredItems = useMemo(() => {
     let result = [...currentItems];
 
+    // Local search filter (normal search mode)
+    if (localSearchQuery.trim()) {
+      const query = localSearchQuery.toLowerCase();
+      result = result.filter(
+        (item) =>
+          item.title.toLowerCase().includes(query) ||
+          item.year.includes(query) ||
+          item.description?.toLowerCase().includes(query) ||
+          item.genreNames?.some(g => g.toLowerCase().includes(query))
+      );
+    }
+
     // Genre filter
     if (selectedGenres.length > 0) {
       result = result.filter(item => 
@@ -105,15 +121,15 @@ const Index = () => {
     }
 
     return result;
-  }, [currentItems, selectedGenres, uploadFilter, sortMode, uploadedIds]);
+  }, [currentItems, localSearchQuery, selectedGenres, uploadFilter, sortMode, uploadedIds]);
 
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
     const target = entries[0];
-    if (target.isIntersecting && hasMore && !isLoadingMore) {
+    if (target.isIntersecting && hasMore && !isLoadingMore && !localSearchQuery) {
       loadMore();
     }
-  }, [hasMore, isLoadingMore, loadMore]);
+  }, [hasMore, isLoadingMore, loadMore, localSearchQuery]);
 
   useEffect(() => {
     const option = { root: null, rootMargin: '400px', threshold: 0 };
@@ -139,6 +155,12 @@ const Index = () => {
         uploadedCount={totalUploaded}
         isUploaded={isUploaded}
         activeCategory={activeCategory}
+        localSearchQuery={localSearchQuery}
+        onLocalSearchChange={setLocalSearchQuery}
+        searchMode={searchMode}
+        onSearchModeChange={setSearchMode}
+        isAutoUpdating={isAutoUpdating}
+        currentPage={currentPage}
       />
 
       <AppSidebar
@@ -164,15 +186,20 @@ const Index = () => {
               <span className="text-sm text-muted-foreground">
                 {filteredItems.length.toLocaleString()} résultats
               </span>
+              {localSearchQuery && (
+                <span className="text-xs bg-accent text-foreground px-2 py-1 rounded-full">
+                  Recherche: "{localSearchQuery}"
+                </span>
+              )}
               {selectedGenres.length > 0 && (
                 <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">
-                  {selectedGenres.length} genre{selectedGenres.length > 1 ? 's' : ''} sélectionné{selectedGenres.length > 1 ? 's' : ''}
+                  {selectedGenres.length} genre{selectedGenres.length > 1 ? 's' : ''}
                 </span>
               )}
             </div>
             {lastUpdate && (
               <span className="text-xs text-muted-foreground">
-                MAJ auto: toutes les heures • Dernière: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                Dernière MAJ: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
           </div>
