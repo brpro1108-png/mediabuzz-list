@@ -125,12 +125,21 @@ serve(async (req) => {
 
     switch (category) {
       case 'movies': {
-        // Fetch multiple movie lists in parallel for maximum content
-        const [popular, topRated, nowPlaying, upcoming] = await Promise.all([
+        // Fetch ALL movie sources for maximum content
+        const [popular, topRated, nowPlaying, upcoming, trending, action, comedy, drama, horror, scifi, family, romance, thriller] = await Promise.all([
           fetchTMDB('/movie/popular', apiKey, { page }),
           fetchTMDB('/movie/top_rated', apiKey, { page }),
           fetchTMDB('/movie/now_playing', apiKey, { page }),
           fetchTMDB('/movie/upcoming', apiKey, { page }),
+          fetchTMDB('/trending/movie/week', apiKey, { page }),
+          fetchTMDB('/discover/movie', apiKey, { page, with_genres: '28' }), // Action
+          fetchTMDB('/discover/movie', apiKey, { page, with_genres: '35' }), // Comedy
+          fetchTMDB('/discover/movie', apiKey, { page, with_genres: '18' }), // Drama
+          fetchTMDB('/discover/movie', apiKey, { page, with_genres: '27' }), // Horror
+          fetchTMDB('/discover/movie', apiKey, { page, with_genres: '878' }), // Sci-Fi
+          fetchTMDB('/discover/movie', apiKey, { page, with_genres: '10751' }), // Family
+          fetchTMDB('/discover/movie', apiKey, { page, with_genres: '10749' }), // Romance
+          fetchTMDB('/discover/movie', apiKey, { page, with_genres: '53' }), // Thriller
         ]);
         
         const allMovies = [
@@ -138,6 +147,15 @@ serve(async (req) => {
           ...topRated.results,
           ...nowPlaying.results,
           ...upcoming.results,
+          ...trending.results,
+          ...action.results,
+          ...comedy.results,
+          ...drama.results,
+          ...horror.results,
+          ...scifi.results,
+          ...family.results,
+          ...romance.results,
+          ...thriller.results,
         ];
         
         // Remove duplicates and documentaries
@@ -153,41 +171,41 @@ serve(async (req) => {
       }
       
       case 'series': {
-        // Fetch ALL types of TV series including sitcoms, telenovelas, kids shows
-        const [popular, topRated, onAir, kids, soaps, comedy, drama] = await Promise.all([
+        // Fetch ALL types of TV series
+        const [popular, topRated, onAir, airing, trending, kids, soaps, comedy, drama, action, crime, mystery, reality, scifi, family] = await Promise.all([
           fetchTMDB('/tv/popular', apiKey, { page }),
           fetchTMDB('/tv/top_rated', apiKey, { page }),
           fetchTMDB('/tv/on_the_air', apiKey, { page }),
-          fetchTMDB('/discover/tv', apiKey, { 
-            page,
-            with_genres: String(KIDS_GENRE_ID),
-            sort_by: 'popularity.desc',
-          }),
-          fetchTMDB('/discover/tv', apiKey, { 
-            page,
-            with_genres: String(SOAP_GENRE_ID),
-            sort_by: 'popularity.desc',
-          }),
-          fetchTMDB('/discover/tv', apiKey, { 
-            page,
-            with_genres: String(COMEDY_GENRE_ID),
-            sort_by: 'popularity.desc',
-          }),
-          fetchTMDB('/discover/tv', apiKey, { 
-            page,
-            with_genres: String(DRAMA_GENRE_ID),
-            sort_by: 'popularity.desc',
-          }),
+          fetchTMDB('/tv/airing_today', apiKey, { page }),
+          fetchTMDB('/trending/tv/week', apiKey, { page }),
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: String(KIDS_GENRE_ID) }),
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: String(SOAP_GENRE_ID) }),
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: String(COMEDY_GENRE_ID) }),
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: String(DRAMA_GENRE_ID) }),
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: '10759' }), // Action & Adventure
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: '80' }), // Crime
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: '9648' }), // Mystery
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: '10764' }), // Reality
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: '10765' }), // Sci-Fi & Fantasy
+          fetchTMDB('/discover/tv', apiKey, { page, with_genres: '10751' }), // Family
         ]);
         
         const allSeries = [
           ...popular.results,
           ...topRated.results,
           ...onAir.results,
+          ...airing.results,
+          ...trending.results,
           ...kids.results,
           ...soaps.results,
           ...comedy.results,
           ...drama.results,
+          ...action.results,
+          ...crime.results,
+          ...mystery.results,
+          ...reality.results,
+          ...scifi.results,
+          ...family.results,
         ];
         
         // Remove duplicates, animation and documentary

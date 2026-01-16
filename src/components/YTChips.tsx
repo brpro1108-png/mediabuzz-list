@@ -1,4 +1,4 @@
-import { Film, Tv, Sparkles, FileText, Clock, TrendingUp, Check, X, Grid3X3, List, LayoutGrid } from 'lucide-react';
+import { Tv, Sparkles, FileText, Clock, TrendingUp, Grid3X3, List, LayoutGrid } from 'lucide-react';
 import { Category } from '@/types/media';
 
 export type SortFilter = 'recent' | 'popular' | null;
@@ -12,8 +12,6 @@ interface YTChipsProps {
   onTypeFilterChange: (type: string | null) => void;
   sortFilter: SortFilter;
   onSortFilterChange: (filter: SortFilter) => void;
-  uploadFilter: UploadFilter;
-  onUploadFilterChange: (filter: UploadFilter) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
 }
@@ -25,8 +23,6 @@ export const YTChips = ({
   onTypeFilterChange,
   sortFilter,
   onSortFilterChange,
-  uploadFilter,
-  onUploadFilterChange,
   viewMode,
   onViewModeChange,
 }: YTChipsProps) => {
@@ -39,7 +35,7 @@ export const YTChips = ({
     { id: null, label: 'Tout' },
     { id: 'series', label: 'Séries TV', icon: Tv },
     { id: 'anime', label: 'Anime', icon: Sparkles },
-    { id: 'documentary', label: 'Documentaires', icon: FileText },
+    { id: 'documentary', label: 'Docs', icon: FileText },
   ];
 
   return (
@@ -62,18 +58,21 @@ export const YTChips = ({
       <div className="h-8 w-px bg-border flex-shrink-0" />
 
       {/* Type filters for series */}
-      {activeCategory === 'series' && seriesTypeChips.map((chip) => (
-        <button
-          key={chip.id || 'all'}
-          onClick={() => onTypeFilterChange(chip.id)}
-          className={`chip whitespace-nowrap flex items-center gap-2 ${activeTypeFilter === chip.id ? 'chip-active' : ''}`}
-        >
-          {chip.icon && <chip.icon className="w-4 h-4" />}
-          {chip.label}
-        </button>
-      ))}
-
-      {activeCategory === 'series' && <div className="h-8 w-px bg-border flex-shrink-0" />}
+      {activeCategory === 'series' && (
+        <>
+          {seriesTypeChips.map((chip) => (
+            <button
+              key={chip.id || 'all'}
+              onClick={() => onTypeFilterChange(chip.id)}
+              className={`chip whitespace-nowrap flex items-center gap-2 ${activeTypeFilter === chip.id ? 'chip-active' : ''}`}
+            >
+              {chip.icon && <chip.icon className="w-4 h-4" />}
+              {chip.label}
+            </button>
+          ))}
+          <div className="h-8 w-px bg-border flex-shrink-0" />
+        </>
+      )}
 
       {/* Sort filter chips */}
       <button 
@@ -89,25 +88,6 @@ export const YTChips = ({
       >
         <TrendingUp className="w-4 h-4" />
         Populaires
-      </button>
-
-      {/* Separator */}
-      <div className="h-8 w-px bg-border flex-shrink-0" />
-
-      {/* Upload filter chips */}
-      <button 
-        onClick={() => onUploadFilterChange(uploadFilter === 'uploaded' ? null : 'uploaded')}
-        className={`chip whitespace-nowrap flex items-center gap-2 ${uploadFilter === 'uploaded' ? 'chip-active' : ''}`}
-      >
-        <Check className="w-4 h-4" />
-        Uploadés
-      </button>
-      <button 
-        onClick={() => onUploadFilterChange(uploadFilter === 'not_uploaded' ? null : 'not_uploaded')}
-        className={`chip whitespace-nowrap flex items-center gap-2 ${uploadFilter === 'not_uploaded' ? 'chip-active' : ''}`}
-      >
-        <X className="w-4 h-4" />
-        Non uploadés
       </button>
 
       {/* Separator */}
