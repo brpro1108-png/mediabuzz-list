@@ -43,10 +43,14 @@
     --pending-foreground: 0 0% 10%;
 
     /* Type colors */
-    --film-accent: 45 90% 55%;
-    --series-accent: 200 80% 55%;
-    --anime-accent: 280 80% 60%;
-    --doc-accent: 160 60% 45%;
+    --film: 45 90% 55%;
+    --film-foreground: 0 0% 10%;
+    --series: 200 80% 55%;
+    --series-foreground: 0 0% 100%;
+    --anime: 280 80% 60%;
+    --anime-foreground: 0 0% 100%;
+    --doc: 160 60% 45%;
+    --doc-foreground: 0 0% 100%;
 
     --sidebar-background: 220 15% 10%;
     --sidebar-foreground: 0 0% 98%;
