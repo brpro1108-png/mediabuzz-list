@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { MediaItem } from '@/types/media';
 import { getMovies, getSeriesContent } from '@/data/mockMedia';
 
@@ -8,38 +7,41 @@ export function useDarkiWorldMedia() {
   const [seriesContent, setSeriesContent] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState({ movies: 1, series: 1, animes: 1, docs: 1 });
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchData = useCallback(async (loadMore = false) => {
+    if (!loadMore) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
-      // Fetch movies
-      const moviesResponse = await supabase.functions.invoke('darkiworld-api', {
-        body: null,
-        method: 'GET',
-      });
-
-      // For now, try a simple GET with query params via URL
-      const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/darkiworld-api`;
+      const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tmdb-api`;
       
+      const pages = loadMore ? {
+        movies: currentPage.movies + 1,
+        series: currentPage.series + 1,
+        animes: currentPage.animes + 1,
+        docs: currentPage.docs + 1,
+      } : { movies: 1, series: 1, animes: 1, docs: 1 };
+
       const [moviesRes, seriesRes, animesRes, docsRes] = await Promise.all([
-        fetch(`${baseUrl}?category=movies`, {
+        fetch(`${baseUrl}?category=movies&page=${pages.movies}`, {
           headers: {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
         }),
-        fetch(`${baseUrl}?category=series`, {
+        fetch(`${baseUrl}?category=series&page=${pages.series}`, {
           headers: {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
         }),
-        fetch(`${baseUrl}?category=animes`, {
+        fetch(`${baseUrl}?category=animes&page=${pages.animes}`, {
           headers: {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
         }),
-        fetch(`${baseUrl}?category=docs`, {
+        fetch(`${baseUrl}?category=docs&page=${pages.docs}`, {
           headers: {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
@@ -55,8 +57,12 @@ export function useDarkiWorldMedia() {
 
       // Check if we got real data
       if (moviesData.success && moviesData.data.length > 0) {
-        setMovies(moviesData.data);
-      } else {
+        if (loadMore) {
+          setMovies(prev => [...prev, ...moviesData.data]);
+        } else {
+          setMovies(moviesData.data);
+        }
+      } else if (!loadMore) {
         // Fallback to mock data
         console.log('Using mock data for movies');
         setMovies(getMovies());
@@ -76,26 +82,40 @@ export function useDarkiWorldMedia() {
       }
 
       if (combinedSeries.length > 0) {
-        setSeriesContent(combinedSeries);
-      } else {
+        if (loadMore) {
+          setSeriesContent(prev => [...prev, ...combinedSeries]);
+        } else {
+          setSeriesContent(combinedSeries);
+        }
+      } else if (!loadMore) {
         // Fallback to mock data
         console.log('Using mock data for series');
         setSeriesContent(getSeriesContent());
       }
 
+      if (loadMore) {
+        setCurrentPage(pages);
+      } else {
+        setCurrentPage({ movies: 1, series: 1, animes: 1, docs: 1 });
+      }
+
     } catch (err) {
-      console.error('Error fetching DarkiWorld data:', err);
+      console.error('Error fetching TMDB data:', err);
       setError('Erreur lors du chargement des données. Utilisation des données de démonstration.');
       // Use mock data as fallback
-      setMovies(getMovies());
-      setSeriesContent(getSeriesContent());
+      if (!movies.length) setMovies(getMovies());
+      if (!seriesContent.length) setSeriesContent(getSeriesContent());
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentPage, movies.length, seriesContent.length]);
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  const loadMore = useCallback(() => {
+    fetchData(true);
   }, [fetchData]);
 
   return {
@@ -103,6 +123,7 @@ export function useDarkiWorldMedia() {
     seriesContent,
     isLoading,
     error,
-    refetch: fetchData,
+    refetch: () => fetchData(false),
+    loadMore,
   };
 }

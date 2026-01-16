@@ -174,7 +174,7 @@ const Index = () => {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-            <p className="text-muted-foreground font-body italic">Consultation des archives...</p>
+            <p className="text-muted-foreground font-body italic">Consultation des archives TMDB...</p>
           </div>
         ) : (
           <>
