@@ -9,27 +9,22 @@ export function useTMDBMedia() {
   const [animes, setAnimes] = useState<MediaItem[]>([]);
   const [docs, setDocs] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [isAutoUpdating, setIsAutoUpdating] = useState(false);
   
-  const currentPage = useRef(1);
+  const loadedPages = useRef({ movies: 0, series: 0, animes: 0, docs: 0 });
   const seenIds = useRef(new Set<string>());
   const autoUpdateInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const continuousUpdateRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Optimized fetch with timeout and retry
-  const fetchPage = useCallback(async (category: string, page: number, retries = 2): Promise<MediaItem[]> => {
+  // Optimized fetch with timeout
+  const fetchPage = useCallback(async (category: string, page: number, withCollections = false): Promise<MediaItem[]> => {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      const timeout = setTimeout(() => controller.abort(), 12000);
       
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/tmdb-api?category=${category}&page=${page}`,
-        { signal: controller.signal }
-      );
+      const url = `${SUPABASE_URL}/functions/v1/tmdb-api?category=${category}&page=${page}${withCollections ? '&collections=true' : ''}`;
+      const response = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
       
       const result = await response.json();
@@ -43,33 +38,32 @@ export function useTMDBMedia() {
       }
       return [];
     } catch (err) {
-      if (retries > 0) {
-        await new Promise(r => setTimeout(r, 1000));
-        return fetchPage(category, page, retries - 1);
-      }
       console.error(`Error fetching ${category} page ${page}:`, err);
       return [];
     }
   }, []);
 
-  // Load initial data with batched requests to reduce latency
+  // Load initial data - fewer pages for faster startup
   const loadInitialData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     seenIds.current.clear();
-    currentPage.current = 1;
+    loadedPages.current = { movies: 0, series: 0, animes: 0, docs: 0 };
+    setMovies([]);
+    setSeries([]);
+    setAnimes([]);
+    setDocs([]);
 
     try {
-      // Load in smaller batches to improve perceived performance
-      const batchSize = 5;
-      const totalBatches = 4; // 20 pages total but in batches
+      // Load first 10 pages quickly
+      const initialPages = 10;
       
-      for (let batch = 0; batch < totalBatches; batch++) {
-        const startPage = batch * batchSize + 1;
-        const pages = Array.from({ length: batchSize }, (_, i) => startPage + i);
+      for (let batch = 0; batch < 2; batch++) {
+        const startPage = batch * 5 + 1;
+        const pages = [startPage, startPage + 1, startPage + 2, startPage + 3, startPage + 4];
         
         const [movieResults, seriesResults, animeResults, docResults] = await Promise.all([
-          Promise.all(pages.map(p => fetchPage('movies', p))),
+          Promise.all(pages.map(p => fetchPage('movies', p, true))),
           Promise.all(pages.map(p => fetchPage('series', p))),
           Promise.all(pages.map(p => fetchPage('animes', p))),
           Promise.all(pages.map(p => fetchPage('docs', p))),
@@ -80,10 +74,14 @@ export function useTMDBMedia() {
         setAnimes(prev => [...prev, ...animeResults.flat()]);
         setDocs(prev => [...prev, ...docResults.flat()]);
         
-        // Show content after first batch
         if (batch === 0) setIsLoading(false);
         
-        currentPage.current = startPage + batchSize - 1;
+        loadedPages.current = {
+          movies: startPage + 4,
+          series: startPage + 4,
+          animes: startPage + 4,
+          docs: startPage + 4,
+        };
       }
       
       setLastUpdate(new Date());
@@ -94,43 +92,77 @@ export function useTMDBMedia() {
     }
   }, [fetchPage]);
 
-  const loadMore = useCallback(async () => {
-    if (isLoadingMore || !hasMore) return;
+  // Background fetch more pages
+  const fetchMorePages = useCallback(async (pagesToFetch = 5) => {
+    const currentMax = Math.max(
+      loadedPages.current.movies,
+      loadedPages.current.series,
+      loadedPages.current.animes,
+      loadedPages.current.docs
+    );
     
-    setIsLoadingMore(true);
-    const nextPage = currentPage.current + 1;
-
-    try {
-      const pagesToLoad = 3; // Reduced for faster response
+    let newContentCount = 0;
+    
+    for (let i = 0; i < pagesToFetch; i++) {
+      const newPage = currentMax + 1 + i;
+      
       const [movieResults, seriesResults, animeResults, docResults] = await Promise.all([
-        Promise.all(Array.from({ length: pagesToLoad }, (_, i) => fetchPage('movies', nextPage + i))),
-        Promise.all(Array.from({ length: pagesToLoad }, (_, i) => fetchPage('series', nextPage + i))),
-        Promise.all(Array.from({ length: pagesToLoad }, (_, i) => fetchPage('animes', nextPage + i))),
-        Promise.all(Array.from({ length: pagesToLoad }, (_, i) => fetchPage('docs', nextPage + i))),
+        fetchPage('movies', newPage, true),
+        fetchPage('series', newPage),
+        fetchPage('animes', newPage),
+        fetchPage('docs', newPage),
       ]);
 
-      const newMovies = movieResults.flat();
-      const newSeries = seriesResults.flat();
-      const newAnimes = animeResults.flat();
-      const newDocs = docResults.flat();
-
-      if (newMovies.length === 0 && newSeries.length === 0 && newAnimes.length === 0 && newDocs.length === 0) {
-        setHasMore(false);
-      } else {
-        setMovies(prev => [...prev, ...newMovies]);
-        setSeries(prev => [...prev, ...newSeries]);
-        setAnimes(prev => [...prev, ...newAnimes]);
-        setDocs(prev => [...prev, ...newDocs]);
-        currentPage.current = nextPage + pagesToLoad - 1;
+      if (movieResults.length > 0) {
+        setMovies(prev => [...prev, ...movieResults]);
+        newContentCount += movieResults.length;
       }
-    } catch (err) {
-      console.error('Error loading more:', err);
-    } finally {
-      setIsLoadingMore(false);
+      if (seriesResults.length > 0) {
+        setSeries(prev => [...prev, ...seriesResults]);
+        newContentCount += seriesResults.length;
+      }
+      if (animeResults.length > 0) {
+        setAnimes(prev => [...prev, ...animeResults]);
+        newContentCount += animeResults.length;
+      }
+      if (docResults.length > 0) {
+        setDocs(prev => [...prev, ...docResults]);
+        newContentCount += docResults.length;
+      }
+      
+      loadedPages.current = {
+        movies: newPage,
+        series: newPage,
+        animes: newPage,
+        docs: newPage,
+      };
+      
+      // Small delay between pages to avoid rate limiting
+      await new Promise(r => setTimeout(r, 200));
     }
-  }, [isLoadingMore, hasMore, fetchPage]);
+    
+    return newContentCount;
+  }, [fetchPage]);
 
-  // Real-time TMDB search - returns results directly
+  // Auto-update that continuously fetches more content
+  const performAutoUpdate = useCallback(async () => {
+    if (isAutoUpdating) return;
+    
+    setIsAutoUpdating(true);
+    console.log('🔄 Auto-update: fetching more content...');
+    
+    try {
+      const newContent = await fetchMorePages(10);
+      setLastUpdate(new Date());
+      console.log(`✅ Auto-update complete: ${newContent} new items. Pages loaded: ${loadedPages.current.movies}`);
+    } catch (err) {
+      console.error('Auto-update error:', err);
+    } finally {
+      setIsAutoUpdating(false);
+    }
+  }, [fetchMorePages, isAutoUpdating]);
+
+  // Real-time TMDB search
   const searchTMDB = useCallback(async (query: string, category: 'movies' | 'series'): Promise<MediaItem[]> => {
     if (!query.trim()) return [];
 
@@ -139,7 +171,7 @@ export function useTMDBMedia() {
       const timeout = setTimeout(() => controller.abort(), 10000);
       
       const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/tmdb-api?category=${category}&search=${encodeURIComponent(query)}&page=1`,
+        `${SUPABASE_URL}/functions/v1/tmdb-api?category=${category}&search=${encodeURIComponent(query)}&page=1&collections=true`,
         { signal: controller.signal }
       );
       clearTimeout(timeout);
@@ -156,75 +188,22 @@ export function useTMDBMedia() {
     }
   }, []);
 
-  // Continuous auto-update that keeps fetching until all content is loaded
-  const performAutoUpdate = useCallback(async () => {
-    if (isAutoUpdating) return;
-    
-    setIsAutoUpdating(true);
-    console.log('🔄 Auto-update started - fetching missing content...');
-    
-    try {
-      // Fetch multiple pages in sequence to get more content
-      const pagesToFetch = 10;
-      let newContentAdded = 0;
-      
-      for (let i = 0; i < pagesToFetch; i++) {
-        const newPage = currentPage.current + 1 + i;
-        
-        const [movieResults, seriesResults, animeResults, docResults] = await Promise.all([
-          fetchPage('movies', newPage),
-          fetchPage('series', newPage),
-          fetchPage('animes', newPage),
-          fetchPage('docs', newPage),
-        ]);
-
-        if (movieResults.length > 0) {
-          setMovies(prev => [...prev, ...movieResults]);
-          newContentAdded += movieResults.length;
-        }
-        if (seriesResults.length > 0) {
-          setSeries(prev => [...prev, ...seriesResults]);
-          newContentAdded += seriesResults.length;
-        }
-        if (animeResults.length > 0) {
-          setAnimes(prev => [...prev, ...animeResults]);
-          newContentAdded += animeResults.length;
-        }
-        if (docResults.length > 0) {
-          setDocs(prev => [...prev, ...docResults]);
-          newContentAdded += docResults.length;
-        }
-        
-        // Small delay between batches to avoid rate limiting
-        await new Promise(r => setTimeout(r, 500));
-      }
-      
-      currentPage.current += pagesToFetch;
-      setLastUpdate(new Date());
-      console.log(`✅ Auto-update complete: ${newContentAdded} new items added. Total pages: ${currentPage.current}`);
-    } catch (err) {
-      console.error('Auto-update error:', err);
-    } finally {
-      setIsAutoUpdating(false);
-    }
-  }, [fetchPage, isAutoUpdating]);
-
   useEffect(() => {
     loadInitialData();
     
     // Auto-update every hour
     autoUpdateInterval.current = setInterval(performAutoUpdate, 60 * 60 * 1000);
     
-    // Also do a continuous background update every 5 minutes to catch up faster
-    continuousUpdateRef.current = setInterval(() => {
-      if (currentPage.current < 100) { // Keep fetching until we have 100+ pages
+    // Also update every 10 minutes until we have enough content
+    const continuousUpdate = setInterval(() => {
+      if (loadedPages.current.movies < 50) {
         performAutoUpdate();
       }
-    }, 5 * 60 * 1000);
+    }, 10 * 60 * 1000);
     
     return () => {
       if (autoUpdateInterval.current) clearInterval(autoUpdateInterval.current);
-      if (continuousUpdateRef.current) clearInterval(continuousUpdateRef.current);
+      clearInterval(continuousUpdate);
     };
   }, [loadInitialData, performAutoUpdate]);
 
@@ -234,14 +213,11 @@ export function useTMDBMedia() {
     animes,
     docs,
     isLoading,
-    isLoadingMore,
     error,
     refetch: loadInitialData,
-    loadMore,
-    hasMore,
     searchTMDB,
     lastUpdate,
     isAutoUpdating,
-    currentPage: currentPage.current,
+    pagesLoaded: loadedPages.current.movies,
   };
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { AppHeader } from '@/components/AppHeader';
 import { AppSidebar, UploadFilter, SortMode } from '@/components/AppSidebar';
 import { MediaList } from '@/components/MediaList';
@@ -8,6 +8,8 @@ import { Category, MediaItem } from '@/types/media';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const ITEMS_PER_PAGE = 100;
+
 const Index = () => {
   const [activeCategory, setActiveCategory] = useState<Category>('films');
   const [activeTypeFilter, setActiveTypeFilter] = useState<string | null>(null);
@@ -16,7 +18,7 @@ const Index = () => {
   const [selectedGenres, setSelectedGenres] = useState<number[]>([]);
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'local' | 'tmdb'>('local');
-  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   
   const { toggleUploaded, isUploaded, uploadedIds } = useUploadedMedia();
   const { 
@@ -25,16 +27,18 @@ const Index = () => {
     animes, 
     docs, 
     isLoading, 
-    isLoadingMore, 
     error, 
     refetch, 
-    loadMore, 
-    hasMore,
     searchTMDB,
     lastUpdate,
     isAutoUpdating,
-    currentPage,
+    pagesLoaded,
   } = useTMDBMedia();
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeCategory, activeTypeFilter, uploadFilter, sortMode, selectedGenres, localSearchQuery]);
 
   // Handle search item selection
   const handleSelectSearchItem = useCallback((item: MediaItem) => {
@@ -83,7 +87,7 @@ const Index = () => {
   const filteredItems = useMemo(() => {
     let result = [...currentItems];
 
-    // Local search filter (normal search mode)
+    // Local search filter
     if (localSearchQuery.trim()) {
       const query = localSearchQuery.toLowerCase();
       result = result.filter(
@@ -91,7 +95,8 @@ const Index = () => {
           item.title.toLowerCase().includes(query) ||
           item.year.includes(query) ||
           item.description?.toLowerCase().includes(query) ||
-          item.genreNames?.some(g => g.toLowerCase().includes(query))
+          item.genreNames?.some(g => g.toLowerCase().includes(query)) ||
+          item.collectionName?.toLowerCase().includes(query)
       );
     }
 
@@ -123,26 +128,16 @@ const Index = () => {
     return result;
   }, [currentItems, localSearchQuery, selectedGenres, uploadFilter, sortMode, uploadedIds]);
 
-  // Infinite scroll observer
-  const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
-    const target = entries[0];
-    if (target.isIntersecting && hasMore && !isLoadingMore && !localSearchQuery) {
-      loadMore();
-    }
-  }, [hasMore, isLoadingMore, loadMore, localSearchQuery]);
-
-  useEffect(() => {
-    const option = { root: null, rootMargin: '400px', threshold: 0 };
-    const observer = new IntersectionObserver(handleObserver, option);
-    if (loadMoreRef.current) observer.observe(loadMoreRef.current);
-    return () => { if (loadMoreRef.current) observer.unobserve(loadMoreRef.current); };
-  }, [handleObserver]);
-
   const getTitle = () => {
     if (activeTypeFilter === 'anime') return 'Animes';
     if (activeTypeFilter === 'documentary') return 'Documentaires';
     return activeCategory === 'films' ? 'Films' : 'Séries';
   };
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">
@@ -160,7 +155,7 @@ const Index = () => {
         searchMode={searchMode}
         onSearchModeChange={setSearchMode}
         isAutoUpdating={isAutoUpdating}
-        currentPage={currentPage}
+        currentPage={pagesLoaded}
       />
 
       <AppSidebar
@@ -197,11 +192,19 @@ const Index = () => {
                 </span>
               )}
             </div>
-            {lastUpdate && (
-              <span className="text-xs text-muted-foreground">
-                Dernière MAJ: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {lastUpdate && (
+                <span className="text-xs text-muted-foreground">
+                  MAJ: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              {isAutoUpdating && (
+                <span className="text-xs text-primary flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Mise à jour...
+                </span>
+              )}
+            </div>
           </div>
 
           {isLoading ? (
@@ -210,17 +213,14 @@ const Index = () => {
               <p className="text-muted-foreground">Chargement des médias...</p>
             </div>
           ) : (
-            <>
-              <MediaList items={filteredItems} isUploaded={isUploaded} onToggleUpload={toggleUploaded} />
-              <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-8">
-                {isLoadingMore && (
-                  <div className="flex items-center gap-3 text-muted-foreground">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm">Chargement...</span>
-                  </div>
-                )}
-              </div>
-            </>
+            <MediaList 
+              items={filteredItems} 
+              isUploaded={isUploaded} 
+              onToggleUpload={toggleUploaded}
+              currentPage={currentPage}
+              onPageChange={handlePageChange}
+              itemsPerPage={ITEMS_PER_PAGE}
+            />
           )}
           {error && <div className="text-center py-4 text-destructive text-sm">{error}</div>}
         </div>
