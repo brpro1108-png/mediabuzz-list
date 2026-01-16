@@ -1,4 +1,5 @@
 import { Menu, Search, Bell, Upload, Mic } from 'lucide-react';
+import logo from '@/assets/logo.png';
 
 interface YTHeaderProps {
   searchQuery: string;
@@ -13,15 +14,17 @@ export const YTHeader = ({ searchQuery, onSearchChange, onToggleSidebar }: YTHea
       <div className="flex items-center gap-4">
         <button 
           onClick={onToggleSidebar}
-          className="p-2 hover:bg-accent rounded-full transition-colors"
+          className="p-2 hover:bg-accent/20 rounded-full transition-colors"
         >
           <Menu className="w-6 h-6" />
         </button>
-        <div className="flex items-center gap-1">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">DW</span>
-          </div>
-          <span className="text-xl font-semibold hidden sm:block">DarkiWorld</span>
+        <div className="flex items-center gap-2">
+          <img 
+            src={logo} 
+            alt="Global Upload" 
+            className="w-9 h-9 object-contain logo-glow"
+          />
+          <span className="text-xl font-semibold hidden sm:block gradient-text">GlobalUpload</span>
         </div>
       </div>
 
@@ -39,24 +42,28 @@ export const YTHeader = ({ searchQuery, onSearchChange, onToggleSidebar }: YTHea
             <Search className="w-5 h-5" />
           </button>
         </div>
-        <button className="p-2.5 bg-secondary hover:bg-accent rounded-full transition-colors">
+        <button className="p-2.5 bg-secondary hover:bg-accent/20 rounded-full transition-colors">
           <Mic className="w-5 h-5" />
         </button>
       </div>
 
       {/* Right section */}
       <div className="flex items-center gap-2">
-        <button className="p-2 hover:bg-accent rounded-full transition-colors sm:hidden">
+        <button className="p-2 hover:bg-accent/20 rounded-full transition-colors sm:hidden">
           <Search className="w-5 h-5" />
         </button>
-        <button className="p-2 hover:bg-accent rounded-full transition-colors hidden sm:flex">
+        <button className="p-2 hover:bg-accent/20 rounded-full transition-colors hidden sm:flex">
           <Upload className="w-5 h-5" />
         </button>
-        <button className="p-2 hover:bg-accent rounded-full transition-colors hidden sm:flex">
+        <button className="p-2 hover:bg-accent/20 rounded-full transition-colors hidden sm:flex">
           <Bell className="w-5 h-5" />
         </button>
-        <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center ml-2">
-          <span className="text-white text-sm font-medium">U</span>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center ml-2 overflow-hidden">
+          <img 
+            src={logo} 
+            alt="Profile" 
+            className="w-full h-full object-cover"
+          />
         </div>
       </div>
     </header>

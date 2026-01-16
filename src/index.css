@@ -6,82 +6,91 @@
 
 @layer base {
   :root {
-    --background: 220 15% 8%;
+    --background: 240 10% 6%;
     --foreground: 0 0% 98%;
 
-    --card: 220 15% 12%;
+    --card: 240 10% 10%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 220 15% 12%;
+    --popover: 240 10% 10%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 142 70% 45%;
+    /* Rainbow gradient primary - Magenta/Pink */
+    --primary: 300 80% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 18%;
+    /* Cyan accent */
+    --accent: 180 80% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --secondary: 240 10% 14%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 220 15% 20%;
-    --muted-foreground: 220 10% 55%;
-
-    --accent: 220 15% 22%;
-    --accent-foreground: 0 0% 98%;
+    --muted: 240 10% 18%;
+    --muted-foreground: 240 8% 55%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 20%;
-    --input: 220 15% 18%;
-    --ring: 142 70% 45%;
+    --border: 240 10% 18%;
+    --input: 240 10% 14%;
+    --ring: 300 80% 60%;
 
     --radius: 0.75rem;
 
-    /* Status colors */
-    --uploaded: 142 70% 45%;
+    /* Status colors - Gradient green */
+    --uploaded: 142 70% 50%;
     --uploaded-foreground: 0 0% 100%;
-    --pending: 45 90% 55%;
+    --pending: 50 95% 55%;
     --pending-foreground: 0 0% 10%;
 
-    /* Type colors */
-    --film: 45 90% 55%;
+    /* Type colors - Rainbow inspired */
+    --film: 50 95% 55%;
     --film-foreground: 0 0% 10%;
-    --series: 200 80% 55%;
+    --series: 180 80% 55%;
     --series-foreground: 0 0% 100%;
-    --anime: 280 80% 60%;
+    --anime: 280 80% 65%;
     --anime-foreground: 0 0% 100%;
-    --doc: 160 60% 45%;
+    --doc: 142 70% 50%;
     --doc-foreground: 0 0% 100%;
 
-    --sidebar-background: 220 15% 10%;
+    --sidebar-background: 240 10% 8%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 142 70% 45%;
+    --sidebar-primary: 300 80% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent: 240 10% 16%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 220 15% 18%;
-    --sidebar-ring: 142 70% 45%;
+    --sidebar-border: 240 10% 16%;
+    --sidebar-ring: 300 80% 60%;
+
+    /* Gradient colors */
+    --gradient-pink: 320 80% 60%;
+    --gradient-purple: 280 80% 60%;
+    --gradient-cyan: 180 80% 55%;
+    --gradient-yellow: 50 95% 55%;
+    --gradient-green: 142 70% 50%;
   }
 
   .dark {
-    --background: 220 15% 8%;
+    --background: 240 10% 6%;
     --foreground: 0 0% 98%;
-    --card: 220 15% 12%;
+    --card: 240 10% 10%;
     --card-foreground: 0 0% 98%;
-    --popover: 220 15% 12%;
+    --popover: 240 10% 10%;
     --popover-foreground: 0 0% 98%;
-    --primary: 142 70% 45%;
+    --primary: 300 80% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 15% 18%;
+    --secondary: 240 10% 14%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 220 15% 20%;
-    --muted-foreground: 220 10% 55%;
-    --accent: 220 15% 22%;
-    --accent-foreground: 0 0% 98%;
+    --muted: 240 10% 18%;
+    --muted-foreground: 240 8% 55%;
+    --accent: 180 80% 50%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 20%;
-    --input: 220 15% 18%;
-    --ring: 142 70% 45%;
+    --border: 240 10% 18%;
+    --input: 240 10% 14%;
+    --ring: 300 80% 60%;
   }
 }
 
@@ -97,13 +106,48 @@
 }
 
 @layer components {
+  /* Rainbow gradient text */
+  .gradient-text {
+    background: linear-gradient(
+      90deg,
+      hsl(320, 80%, 60%),
+      hsl(280, 80%, 60%),
+      hsl(180, 80%, 55%),
+      hsl(50, 95%, 55%),
+      hsl(142, 70%, 50%)
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Rainbow border glow */
+  .rainbow-border {
+    position: relative;
+    background: linear-gradient(135deg, 
+      hsl(320, 80%, 60%), 
+      hsl(280, 80%, 60%), 
+      hsl(180, 80%, 55%), 
+      hsl(50, 95%, 55%)
+    );
+    background-size: 300% 300%;
+    animation: rainbow-shift 5s ease infinite;
+  }
+
+  @keyframes rainbow-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
   /* Progress bar */
   .progress-bar {
     @apply h-2 bg-secondary rounded-full overflow-hidden;
   }
 
   .progress-bar-fill {
-    @apply h-full bg-primary rounded-full transition-all duration-500 ease-out;
+    @apply h-full rounded-full transition-all duration-500 ease-out;
+    background: linear-gradient(90deg, hsl(300, 80%, 60%), hsl(180, 80%, 55%));
   }
 
   /* Header */
@@ -120,12 +164,12 @@
 
   .sidebar-item {
     @apply flex items-center gap-3 px-4 py-3 mx-2 rounded-lg;
-    @apply text-sm text-muted-foreground hover:bg-accent hover:text-foreground;
+    @apply text-sm text-muted-foreground hover:bg-accent/20 hover:text-foreground;
     @apply transition-all duration-200 cursor-pointer;
   }
 
   .sidebar-item-active {
-    @apply bg-primary/10 text-primary font-medium;
+    @apply bg-primary/15 text-primary font-medium;
   }
 
   /* Main content */
@@ -136,12 +180,13 @@
   /* Media list item */
   .media-item {
     @apply flex items-center gap-4 p-4 bg-card rounded-xl;
-    @apply border border-transparent hover:border-border;
+    @apply border border-transparent hover:border-primary/30;
     @apply transition-all duration-200 cursor-pointer;
   }
 
   .media-item:hover {
-    @apply bg-accent/50;
+    @apply bg-accent/10;
+    box-shadow: 0 0 20px hsla(300, 80%, 60%, 0.1);
   }
 
   .media-item-uploaded {
@@ -194,7 +239,7 @@
   .filter-chip {
     @apply px-4 py-2 rounded-full text-sm font-medium;
     @apply bg-secondary text-muted-foreground;
-    @apply hover:bg-accent hover:text-foreground;
+    @apply hover:bg-primary/20 hover:text-primary;
     @apply transition-all duration-200 cursor-pointer;
   }
 
@@ -214,6 +259,16 @@
     @apply bg-card rounded-xl p-4 border border-border;
   }
 
+  /* Primary button glow */
+  .btn-glow {
+    @apply relative overflow-hidden;
+    box-shadow: 0 0 20px hsla(300, 80%, 60%, 0.3);
+  }
+
+  .btn-glow:hover {
+    box-shadow: 0 0 30px hsla(300, 80%, 60%, 0.5);
+  }
+
   /* Scrollbar */
   ::-webkit-scrollbar {
     width: 8px;
@@ -225,16 +280,22 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(220 15% 25%);
+    background: hsl(240, 10%, 22%);
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(220 15% 35%);
+    background: hsl(300, 60%, 40%);
   }
 
   /* Skeleton loading */
   .skeleton {
     @apply animate-pulse bg-secondary rounded;
+  }
+
+  /* Logo glow effect */
+  .logo-glow {
+    filter: drop-shadow(0 0 10px hsla(300, 80%, 60%, 0.4))
+            drop-shadow(0 0 20px hsla(180, 80%, 55%, 0.3));
   }
 }

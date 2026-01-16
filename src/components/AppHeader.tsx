@@ -1,7 +1,7 @@
-import { RefreshCw, Film, Search, X, Filter } from 'lucide-react';
+import { RefreshCw, Search, X, Filter } from 'lucide-react';
 import { SearchDropdown } from './SearchDropdown';
 import { MediaItem, Category } from '@/types/media';
-import { useState } from 'react';
+import logo from '@/assets/logo.png';
 
 interface AppHeaderProps {
   onSearch: (query: string, category: 'movies' | 'series') => Promise<MediaItem[]>;
@@ -43,11 +43,15 @@ export const AppHeader = ({
     <header className="app-header">
       {/* Logo */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-          <Film className="w-5 h-5 text-primary-foreground" />
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
+          <img 
+            src={logo} 
+            alt="Global Upload" 
+            className="w-full h-full object-contain logo-glow"
+          />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-foreground">DarkiWorld</h1>
+          <h1 className="text-lg font-bold gradient-text">GlobalUpload</h1>
           <p className="text-xs text-muted-foreground">Media Manager</p>
         </div>
       </div>
@@ -94,7 +98,7 @@ export const AppHeader = ({
             {localSearchQuery && (
               <button
                 onClick={() => onLocalSearchChange('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-accent rounded"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-accent/20 rounded"
               >
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
@@ -144,7 +148,7 @@ export const AppHeader = ({
         <button
           onClick={onRefresh}
           disabled={isLoading}
-          className="p-2.5 bg-secondary hover:bg-accent rounded-xl transition-colors"
+          className="p-2.5 bg-secondary hover:bg-primary/20 rounded-xl transition-colors"
           title="Actualiser"
         >
           <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
