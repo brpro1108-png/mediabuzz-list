@@ -1,75 +1,114 @@
+import { useState } from 'react';
+import { Film, Tv, Sparkles, FileText, Check } from 'lucide-react';
 import { MediaItem } from '@/types/media';
-import { Check, Film, Tv, Sparkles, BookOpen } from 'lucide-react';
+import { MediaDetailModal } from './MediaDetailModal';
+import { motion } from 'framer-motion';
 
 interface MediaCardProps {
   media: MediaItem;
   isUploaded: boolean;
   onToggleUpload: () => void;
+  index?: number;
 }
 
 const typeConfig = {
-  movie: { icon: Film, label: 'Film', color: 'text-film' },
-  series: { icon: Tv, label: 'Série', color: 'text-series' },
-  anime: { icon: Sparkles, label: 'Anime', color: 'text-accent' },
-  documentary: { icon: BookOpen, label: 'Doc', color: 'text-primary' },
+  movie: { icon: Film, label: 'Film', bgClass: 'bg-film/20 text-film border-film/30' },
+  series: { icon: Tv, label: 'Série', bgClass: 'bg-series/20 text-series border-series/30' },
+  anime: { icon: Sparkles, label: 'Anime', bgClass: 'bg-anime/20 text-anime border-anime/30' },
+  documentary: { icon: FileText, label: 'Doc', bgClass: 'bg-doc/20 text-doc border-doc/30' },
 };
 
-export const MediaCard = ({ media, isUploaded, onToggleUpload }: MediaCardProps) => {
-  const config = typeConfig[media.type];
-  const TypeIcon = config.icon;
+export const MediaCard = ({ media, isUploaded, onToggleUpload, index = 0 }: MediaCardProps) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  const { icon: TypeIcon, label, bgClass } = typeConfig[media.type];
 
   return (
-    <div
-      onClick={onToggleUpload}
-      className={`media-card cursor-pointer fade-in ${
-        isUploaded ? 'media-card-uploaded' : ''
-      }`}
-    >
-      {/* Uploaded Badge */}
-      {isUploaded && (
-        <div className="uploaded-badge flex items-center gap-1">
-          <Check className="w-3 h-3" />
-          <span>Déjà upload</span>
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: index * 0.05 }}
+        className={`media-card cursor-pointer group ${isUploaded ? 'media-card-uploaded' : ''}`}
+        onClick={() => setIsModalOpen(true)}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Poster */}
+        <div className="relative aspect-[2/3] overflow-hidden">
+          {!imageLoaded && !imageError && (
+            <div className="absolute inset-0 bg-muted animate-pulse" />
+          )}
+          <img
+            src={imageError ? '/placeholder.svg' : media.poster}
+            alt={media.title}
+            className={`w-full h-full object-cover transition-all duration-500 ${
+              isHovered ? 'scale-110 brightness-110' : 'scale-100'
+            } ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => {
+              setImageError(true);
+              setImageLoaded(true);
+            }}
+          />
+
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent opacity-80" />
+
+          {/* Type badge */}
+          <div className={`type-badge ${bgClass}`}>
+            <TypeIcon className="w-3 h-3 inline-block mr-1" />
+            <span className="text-[10px] font-medium uppercase">{label}</span>
+          </div>
+
+          {/* Uploaded badge */}
+          {isUploaded && (
+            <div className="uploaded-badge flex items-center gap-1.5">
+              <Check className="w-3 h-3" />
+              <span>Uploadé</span>
+            </div>
+          )}
+
+          {/* Hover overlay with quick info */}
+          <motion.div
+            initial={false}
+            animate={{ opacity: isHovered ? 1 : 0 }}
+            className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent flex flex-col justify-end p-4 pointer-events-none"
+          >
+            <p className="text-xs text-muted-foreground line-clamp-3 font-body">
+              {media.description || 'Aucune description disponible'}
+            </p>
+            <span className="mt-2 text-xs text-primary font-display uppercase tracking-wider">
+              Cliquer pour plus de détails →
+            </span>
+          </motion.div>
         </div>
-      )}
 
-      {/* Poster */}
-      <div className="relative aspect-[2/3] overflow-hidden">
-        <img
-          src={media.poster}
-          alt={media.title}
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          loading="lazy"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = '/placeholder.svg';
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-transparent to-transparent" />
-      </div>
-
-      {/* Content */}
-      <div className="p-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <TypeIcon className={`w-4 h-4 ${config.color}`} />
-          <span className={`text-xs font-medium ${config.color}`}>
-            {config.label}
-          </span>
-          <span className="text-xs text-muted-foreground">• {media.year}</span>
+        {/* Info */}
+        <div className="p-4 space-y-2 relative z-10">
+          <h3 className="font-display text-sm text-foreground line-clamp-2 leading-tight group-hover:text-accent transition-colors">
+            {media.title}
+          </h3>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">{media.year}</span>
+            {media.popularity && (
+              <span className="text-xs text-accent">★ {media.popularity.toFixed(1)}</span>
+            )}
+          </div>
         </div>
-        
-        <h3 className="font-display font-semibold text-foreground line-clamp-2 leading-tight">
-          {media.title}
-        </h3>
+      </motion.div>
 
-        {media.description && (
-          <p className="text-xs text-muted-foreground line-clamp-2">
-            {media.description}
-          </p>
-        )}
-      </div>
-
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-primary/5 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-    </div>
+      {/* Detail Modal */}
+      <MediaDetailModal
+        media={media}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        isUploaded={isUploaded}
+        onToggleUpload={onToggleUpload}
+      />
+    </>
   );
 };
