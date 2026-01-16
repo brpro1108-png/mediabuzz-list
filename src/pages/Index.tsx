@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { AppHeader } from '@/components/AppHeader';
 import { AppSidebar, UploadFilter, SortMode } from '@/components/AppSidebar';
 import { MediaList } from '@/components/MediaList';
+import { SmartCollectionBar } from '@/components/SmartCollectionBar';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
 import { useTMDBMedia } from '@/hooks/useTMDBMedia';
 import { Category, MediaItem } from '@/types/media';
@@ -25,7 +26,8 @@ const Index = () => {
     movies, 
     series, 
     animes, 
-    docs, 
+    docs,
+    smartCollections,
     isLoading, 
     error, 
     refetch, 
@@ -175,6 +177,15 @@ const Index = () => {
 
       <main className="app-main">
         <div className="p-6">
+          {/* Smart Collections */}
+          {activeCategory === 'films' && !activeTypeFilter && (
+            <SmartCollectionBar
+              collections={smartCollections}
+              isUploaded={isUploaded}
+              onToggleUpload={toggleUploaded}
+            />
+          )}
+
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
               <h2 className="text-xl font-semibold text-foreground">{getTitle()}</h2>
@@ -193,9 +204,12 @@ const Index = () => {
               )}
             </div>
             <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
+                📄 {pagesLoaded} pages
+              </span>
               {lastUpdate && (
                 <span className="text-xs text-muted-foreground">
-                  MAJ: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  MAJ: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
               )}
               {isAutoUpdating && (

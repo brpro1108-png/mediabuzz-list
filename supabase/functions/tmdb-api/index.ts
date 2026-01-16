@@ -21,6 +21,7 @@ interface MediaItem {
   releaseDate?: string;
   collectionId?: number;
   collectionName?: string;
+  smartCollection?: string;
 }
 
 // Genre mappings
@@ -46,10 +47,16 @@ const TV_NETWORKS = [
   359, 1006, 77, 65, 251, 270, 292, 330, 384, 436, 620, 743, 1035,
 ];
 
-// Collection cache to reduce API calls
-const collectionCache = new Map<number, { id: number; name: string }>();
+// Collection keywords for smart matching
+const COLLECTION_KEYWORDS: Record<string, number[]> = {
+  marvel: [180547, 9715],
+  dc: [229266, 9714],
+  disney: [100],
+  pixar: [7587],
+  ghibli: [10342],
+};
 
-// Optimized fetch with better error handling
+// Optimized fetch
 async function fetchTMDB(endpoint: string, apiKey: string, params: Record<string, string> = {}) {
   const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
   url.searchParams.set("api_key", apiKey);
@@ -66,7 +73,7 @@ async function fetchTMDB(endpoint: string, apiKey: string, params: Record<string
   return response.json();
 }
 
-// Fetch movie details to get collection info (batched)
+// Fetch movie details for collection info
 async function getMovieDetails(movieId: number, apiKey: string): Promise<{ collectionId?: number; collectionName?: string } | null> {
   try {
     const url = new URL(`${TMDB_BASE_URL}/movie/${movieId}`);
@@ -78,11 +85,9 @@ async function getMovieDetails(movieId: number, apiKey: string): Promise<{ colle
     
     const data = await response.json();
     if (data.belongs_to_collection) {
-      const collection = data.belongs_to_collection;
-      collectionCache.set(collection.id, { id: collection.id, name: collection.name });
       return {
-        collectionId: collection.id,
-        collectionName: collection.name,
+        collectionId: data.belongs_to_collection.id,
+        collectionName: data.belongs_to_collection.name,
       };
     }
     return null;
@@ -91,7 +96,7 @@ async function getMovieDetails(movieId: number, apiKey: string): Promise<{ colle
   }
 }
 
-function transformMovie(item: any, collectionInfo?: { collectionId?: number; collectionName?: string }): MediaItem {
+function transformMovie(item: any, collectionInfo?: { collectionId?: number; collectionName?: string }, smartCollection?: string): MediaItem {
   const genres = item.genre_ids || [];
   const genreNames = genres.map((id: number) => MOVIE_GENRES[id]).filter(Boolean);
   
@@ -111,10 +116,11 @@ function transformMovie(item: any, collectionInfo?: { collectionId?: number; col
     releaseDate: item.release_date,
     collectionId: collectionInfo?.collectionId,
     collectionName: collectionInfo?.collectionName,
+    smartCollection,
   };
 }
 
-function transformSeries(item: any, forceType?: 'series' | 'anime' | 'documentary'): MediaItem {
+function transformSeries(item: any, forceType?: 'series' | 'anime' | 'documentary', smartCollection?: string): MediaItem {
   const genres = item.genre_ids || [];
   const genreNames = genres.map((id: number) => SERIES_GENRES[id]).filter(Boolean);
   
@@ -135,6 +141,7 @@ function transformSeries(item: any, forceType?: 'series' | 'anime' | 'documentar
     genres,
     genreNames,
     releaseDate: item.first_air_date,
+    smartCollection,
   };
 }
 
@@ -149,6 +156,7 @@ serve(async (req) => {
     const page = url.searchParams.get("page") || "1";
     const search = url.searchParams.get("search") || "";
     const genre = url.searchParams.get("genre") || "";
+    const smartCollectionType = url.searchParams.get("smart") || "";
     const withCollections = url.searchParams.get("collections") === "true";
 
     const apiKey = Deno.env.get("TMDB_API_KEY");
@@ -165,7 +173,7 @@ serve(async (req) => {
 
     // Search mode
     if (search) {
-      const searchPages = [1, 2, 3].map(p => 
+      const searchPages = [1, 2, 3, 4, 5].map(p => 
         category === "movies" 
           ? fetchTMDB("/search/movie", apiKey, { query: search, page: String(p) })
           : fetchTMDB("/search/tv", apiKey, { query: search, page: String(p) })
@@ -182,25 +190,212 @@ serve(async (req) => {
           if (!seenIds.has(media.id)) {
             seenIds.add(media.id);
             data.push(media);
-            if (category === "movies") {
-              movieIds.push(item.id);
-            }
+            if (category === "movies") movieIds.push(item.id);
           }
         }
         totalPages = Math.max(totalPages, Math.min(result.total_pages || 1, 500));
       }
 
-      // Fetch collection info for movies (limited to first 10 to avoid rate limiting)
+      // Fetch collection info for movies
       if (category === "movies" && withCollections && movieIds.length > 0) {
-        const collectionPromises = movieIds.slice(0, 10).map(id => getMovieDetails(id, apiKey));
+        const collectionPromises = movieIds.slice(0, 15).map(id => getMovieDetails(id, apiKey));
         const collectionResults = await Promise.all(collectionPromises);
-        
         data = data.map((item, index) => {
-          if (index < 10 && collectionResults[index]) {
+          if (index < 15 && collectionResults[index]) {
             return { ...item, ...collectionResults[index] };
           }
           return item;
         });
+      }
+    }
+    // Smart collection mode
+    else if (smartCollectionType) {
+      const currentYear = new Date().getFullYear();
+      let smartSources: Promise<any>[] = [];
+      let collectionName = '';
+
+      switch (smartCollectionType) {
+        case 'trending':
+          collectionName = 'Tendances';
+          smartSources = [
+            fetchTMDB("/trending/movie/day", apiKey, { page }),
+            fetchTMDB("/trending/movie/week", apiKey, { page }),
+          ];
+          break;
+        case 'now_playing':
+          collectionName = 'Au cinéma';
+          smartSources = [
+            fetchTMDB("/movie/now_playing", apiKey, { page, region: "FR" }),
+            fetchTMDB("/movie/now_playing", apiKey, { page, region: "US" }),
+          ];
+          break;
+        case 'upcoming':
+          collectionName = 'Prochaines sorties';
+          smartSources = [
+            fetchTMDB("/movie/upcoming", apiKey, { page, region: "FR" }),
+            fetchTMDB("/movie/upcoming", apiKey, { page, region: "US" }),
+          ];
+          break;
+        case 'top_rated':
+          collectionName = 'Mieux notés';
+          smartSources = [fetchTMDB("/movie/top_rated", apiKey, { page })];
+          break;
+        case 'box_office_2024':
+          collectionName = 'Box Office 2024';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { 
+              page, 
+              "primary_release_year": "2024",
+              sort_by: "revenue.desc",
+              "vote_count.gte": "100"
+            }),
+          ];
+          break;
+        case 'box_office_2023':
+          collectionName = 'Box Office 2023';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { 
+              page, 
+              "primary_release_year": "2023",
+              sort_by: "revenue.desc",
+              "vote_count.gte": "100"
+            }),
+          ];
+          break;
+        case 'box_office_2022':
+          collectionName = 'Box Office 2022';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { 
+              page, 
+              "primary_release_year": "2022",
+              sort_by: "revenue.desc",
+              "vote_count.gte": "100"
+            }),
+          ];
+          break;
+        case 'classics':
+          collectionName = 'Classiques';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { 
+              page, 
+              "primary_release_date.lte": "1990-12-31",
+              sort_by: "vote_average.desc",
+              "vote_count.gte": "1000"
+            }),
+          ];
+          break;
+        case 'family':
+          collectionName = 'Famille';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_genres: "10751", sort_by: "popularity.desc" }),
+          ];
+          break;
+        case 'action':
+          collectionName = 'Action';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_genres: "28", sort_by: "popularity.desc", "vote_count.gte": "500" }),
+          ];
+          break;
+        case 'scifi':
+          collectionName = 'Sci-Fi';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_genres: "878", sort_by: "popularity.desc" }),
+          ];
+          break;
+        case 'horror':
+          collectionName = 'Horreur';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_genres: "27", sort_by: "popularity.desc" }),
+          ];
+          break;
+        case 'romance':
+          collectionName = 'Romance';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_genres: "10749", sort_by: "popularity.desc" }),
+          ];
+          break;
+        case 'comedy':
+          collectionName = 'Comédie';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_genres: "35", sort_by: "popularity.desc" }),
+          ];
+          break;
+        case 'oscar':
+          collectionName = 'Oscarisés';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { 
+              page, 
+              sort_by: "vote_average.desc",
+              "vote_count.gte": "2000",
+              "vote_average.gte": "8"
+            }),
+          ];
+          break;
+        case 'marvel':
+          collectionName = 'Marvel';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_companies: "420", sort_by: "primary_release_date.desc" }),
+          ];
+          break;
+        case 'dc':
+          collectionName = 'DC';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_companies: "9993", sort_by: "primary_release_date.desc" }),
+          ];
+          break;
+        case 'disney':
+          collectionName = 'Disney';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_companies: "2", sort_by: "popularity.desc" }),
+          ];
+          break;
+        case 'pixar':
+          collectionName = 'Pixar';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_companies: "3", sort_by: "primary_release_date.desc" }),
+          ];
+          break;
+        case 'ghibli':
+          collectionName = 'Studio Ghibli';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_companies: "10342", sort_by: "primary_release_date.desc" }),
+          ];
+          break;
+        case 'french':
+          collectionName = 'Français';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_original_language: "fr", sort_by: "popularity.desc" }),
+          ];
+          break;
+        case 'korean':
+          collectionName = 'Coréen';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_original_language: "ko", sort_by: "popularity.desc" }),
+          ];
+          break;
+        case 'japanese':
+          collectionName = 'Japonais';
+          smartSources = [
+            fetchTMDB("/discover/movie", apiKey, { page, with_original_language: "ja", sort_by: "popularity.desc" }),
+          ];
+          break;
+        default:
+          smartSources = [fetchTMDB("/movie/popular", apiKey, { page })];
+      }
+
+      const results = await Promise.all(smartSources);
+      const seenIds = new Set<string>();
+
+      for (const result of results) {
+        for (const item of result.results || []) {
+          if (!item.poster_path) continue;
+          const movie = transformMovie(item, undefined, smartCollectionType);
+          if (!seenIds.has(movie.id)) {
+            seenIds.add(movie.id);
+            data.push(movie);
+          }
+        }
+        totalPages = Math.max(totalPages, Math.min(result.total_pages || 1, 500));
       }
     }
     // Genre filter mode
@@ -215,25 +410,72 @@ serve(async (req) => {
       }
       totalPages = Math.min(result.total_pages || 1, 500);
     }
-    // Full catalog mode - optimized for speed
+    // Full catalog mode - MORE sources for MORE content
     else {
-      const sourceIndex = (pageNum - 1) % 15;
+      const sourceIndex = (pageNum - 1) % 20;
       
       if (category === "movies") {
-        // Reduced parallel requests for better latency
-        const movieSources = [
+        // Extensive movie sources
+        const allMovieSources = [
+          // Core lists
           () => fetchTMDB("/movie/popular", apiKey, { page }),
           () => fetchTMDB("/movie/top_rated", apiKey, { page }),
           () => fetchTMDB("/movie/now_playing", apiKey, { page }),
+          () => fetchTMDB("/movie/upcoming", apiKey, { page }),
+          () => fetchTMDB("/trending/movie/day", apiKey, { page }),
           () => fetchTMDB("/trending/movie/week", apiKey, { page }),
+          // Genres
           () => fetchTMDB("/discover/movie", apiKey, { with_genres: "28", page, sort_by: "popularity.desc" }),
           () => fetchTMDB("/discover/movie", apiKey, { with_genres: "35", page, sort_by: "popularity.desc" }),
           () => fetchTMDB("/discover/movie", apiKey, { with_genres: "18", page, sort_by: "popularity.desc" }),
           () => fetchTMDB("/discover/movie", apiKey, { with_genres: "878", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_genres: "27", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_genres: "53", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_genres: "10749", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_genres: "16", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_genres: "14", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_genres: "12", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_genres: "80", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_genres: "10751", page, sort_by: "popularity.desc" }),
+          // Languages
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "fr", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "es", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "ja", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "ko", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "hi", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "de", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "it", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "pt", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { with_original_language: "zh", page, sort_by: "popularity.desc" }),
+          // Years
+          () => fetchTMDB("/discover/movie", apiKey, { primary_release_year: "2024", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { primary_release_year: "2023", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { primary_release_year: "2022", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { primary_release_year: "2021", page, sort_by: "popularity.desc" }),
+          () => fetchTMDB("/discover/movie", apiKey, { primary_release_year: "2020", page, sort_by: "popularity.desc" }),
+          // Studios
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "420", page, sort_by: "popularity.desc" }), // Marvel
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "9993", page, sort_by: "popularity.desc" }), // DC
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "2", page, sort_by: "popularity.desc" }), // Disney
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "3", page, sort_by: "popularity.desc" }), // Pixar
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "33", page, sort_by: "popularity.desc" }), // Universal
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "174", page, sort_by: "popularity.desc" }), // Warner
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "4", page, sort_by: "popularity.desc" }), // Paramount
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "25", page, sort_by: "popularity.desc" }), // Fox
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "5", page, sort_by: "popularity.desc" }), // Columbia
+          () => fetchTMDB("/discover/movie", apiKey, { with_companies: "7", page, sort_by: "popularity.desc" }), // DreamWorks
+          // Box office
+          () => fetchTMDB("/discover/movie", apiKey, { page, sort_by: "revenue.desc", "vote_count.gte": "100" }),
+          () => fetchTMDB("/discover/movie", apiKey, { page, sort_by: "vote_average.desc", "vote_count.gte": "1000" }),
         ];
-        
-        // Fetch only essential sources for speed
-        const results = await Promise.all(movieSources.slice(0, 5).map(fn => fn()));
+
+        // Select sources based on page for variety
+        const sourcesToUse = [
+          ...allMovieSources.slice(0, 6),
+          ...allMovieSources.slice(6 + (sourceIndex % 10), 6 + (sourceIndex % 10) + 4),
+        ];
+
+        const results = await Promise.all(sourcesToUse.map(fn => fn()));
         
         const seenIds = new Set<string>();
         const movieItems: { item: any; movie: MediaItem }[] = [];
@@ -249,14 +491,14 @@ serve(async (req) => {
           }
         }
 
-        // Fetch collection info for first 20 movies per page (batched)
-        if (withCollections) {
-          const movieIdsToFetch = movieItems.slice(0, 20).map(m => m.item.id);
+        // Fetch collection info for movies
+        if (withCollections && movieItems.length > 0) {
+          const movieIdsToFetch = movieItems.slice(0, 25).map(m => m.item.id);
           const collectionPromises = movieIdsToFetch.map(id => getMovieDetails(id, apiKey));
           const collectionResults = await Promise.all(collectionPromises);
           
           movieItems.forEach((item, index) => {
-            if (index < 20 && collectionResults[index]) {
+            if (index < 25 && collectionResults[index]) {
               item.movie = { ...item.movie, ...collectionResults[index] };
             }
           });
@@ -266,21 +508,41 @@ serve(async (req) => {
         totalPages = 500;
       } 
       else if (category === "series") {
-        const networkBatch = TV_NETWORKS.slice(sourceIndex * 3, sourceIndex * 3 + 3);
+        const networkBatch = TV_NETWORKS.slice((sourceIndex % 10) * 5, (sourceIndex % 10) * 5 + 5);
         
         const seriesSources = [
           fetchTMDB("/tv/popular", apiKey, { page }),
           fetchTMDB("/tv/top_rated", apiKey, { page }),
           fetchTMDB("/tv/on_the_air", apiKey, { page }),
+          fetchTMDB("/tv/airing_today", apiKey, { page }),
+          fetchTMDB("/trending/tv/day", apiKey, { page }),
           fetchTMDB("/trending/tv/week", apiKey, { page }),
+          // Genres
           fetchTMDB("/discover/tv", apiKey, { with_genres: "18", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "35", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "10759", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "10765", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "10762", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "80", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_genres: "9648", page, sort_by: "popularity.desc" }),
+          // Languages
           fetchTMDB("/discover/tv", apiKey, { with_original_language: "es", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "fr", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "ko", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "ja", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_original_language: "pt", page, sort_by: "popularity.desc" }),
+          // Countries
           fetchTMDB("/discover/tv", apiKey, { with_origin_country: "CO", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "MX", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "AR", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "BR", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "GB", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/tv", apiKey, { with_origin_country: "DE", page, sort_by: "popularity.desc" }),
+          // Networks
           ...networkBatch.map(id => fetchTMDB("/discover/tv", apiKey, { with_networks: String(id), page, sort_by: "popularity.desc" })),
         ];
         
-        // Limit parallel requests for speed
-        const results = await Promise.all(seriesSources.slice(0, 6));
+        const results = await Promise.all(seriesSources.slice(0, 12));
         
         const seenIds = new Set<string>();
         for (const result of results) {
@@ -300,6 +562,9 @@ serve(async (req) => {
           fetchTMDB("/discover/tv", apiKey, { with_genres: "16", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_genres: "16", with_original_language: "ja", page }),
           fetchTMDB("/discover/movie", apiKey, { with_genres: "16", with_original_language: "ja", page }),
+          fetchTMDB("/discover/tv", apiKey, { with_keywords: "210024", page }),
+          fetchTMDB("/discover/movie", apiKey, { with_keywords: "210024", page }),
+          fetchTMDB("/trending/tv/week", apiKey, { page }),
         ]);
         
         const seenIds = new Set<string>();
@@ -324,6 +589,7 @@ serve(async (req) => {
         const sources = await Promise.all([
           fetchTMDB("/discover/movie", apiKey, { with_genres: "99", page, sort_by: "popularity.desc" }),
           fetchTMDB("/discover/tv", apiKey, { with_genres: "99", page, sort_by: "popularity.desc" }),
+          fetchTMDB("/discover/movie", apiKey, { with_genres: "99", page, sort_by: "vote_average.desc", "vote_count.gte": "100" }),
         ]);
         
         const seenIds = new Set<string>();
