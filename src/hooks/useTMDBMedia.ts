@@ -339,8 +339,8 @@ export function useTMDBMedia() {
   useEffect(() => {
     loadInitialData();
     
-    // Fast update every 5 seconds
-    fastUpdateRef.current = setInterval(fetchMorePagesFast, 5 * 1000);
+    // Fast update every 1 second for rapid media loading
+    fastUpdateRef.current = setInterval(fetchMorePagesFast, 1000);
     
     // Major update every 30 minutes
     updateIntervalRef.current = setInterval(performMajorUpdate, 30 * 60 * 1000);
