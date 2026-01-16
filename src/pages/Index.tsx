@@ -3,7 +3,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { AppSidebar, UploadFilter, SortMode } from '@/components/AppSidebar';
 import { MediaList } from '@/components/MediaList';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
-import { useDarkiWorldMedia } from '@/hooks/useDarkiWorldMedia';
+import { useTMDBMedia } from '@/hooks/useTMDBMedia';
 import { Category } from '@/types/media';
 import { Loader2 } from 'lucide-react';
 
@@ -16,21 +16,41 @@ const Index = () => {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   const { toggleUploaded, isUploaded, uploadedIds } = useUploadedMedia();
-  const { movies, seriesContent, isLoading, isLoadingMore, error, refetch, loadMore, hasMore } = useDarkiWorldMedia();
+  const { 
+    movies, 
+    series, 
+    animes, 
+    docs, 
+    isLoading, 
+    isLoadingMore, 
+    error, 
+    refetch, 
+    loadMore, 
+    hasMore,
+    lastUpdate
+  } = useTMDBMedia();
 
-  const currentItems = activeCategory === 'films' ? movies : seriesContent;
+  // Determine current items based on category and type filter
+  const currentItems = useMemo(() => {
+    if (activeTypeFilter === 'anime') return animes;
+    if (activeTypeFilter === 'documentary') return docs;
+    return activeCategory === 'films' ? movies : series;
+  }, [activeCategory, activeTypeFilter, movies, series, animes, docs]);
 
   // Calculate stats
   const stats = useMemo(() => ({
     totalFilms: movies.length,
-    totalSeries: seriesContent.length,
+    totalSeries: series.length,
     uploadedFilms: movies.filter(m => uploadedIds.has(m.id)).length,
-    uploadedSeries: seriesContent.filter(s => uploadedIds.has(s.id)).length,
-  }), [movies, seriesContent, uploadedIds]);
+    uploadedSeries: series.filter(s => uploadedIds.has(s.id)).length,
+  }), [movies, series, uploadedIds]);
 
-  const totalMedia = movies.length + seriesContent.length;
-  const totalUploaded = stats.uploadedFilms + stats.uploadedSeries;
+  const totalMedia = movies.length + series.length + animes.length + docs.length;
+  const totalUploaded = stats.uploadedFilms + stats.uploadedSeries + 
+    animes.filter(a => uploadedIds.has(a.id)).length + 
+    docs.filter(d => uploadedIds.has(d.id)).length;
 
+  // Filter and sort items
   const filteredItems = useMemo(() => {
     let result = [...currentItems];
 
@@ -41,13 +61,9 @@ const Index = () => {
         (item) =>
           item.title.toLowerCase().includes(query) ||
           item.year.includes(query) ||
-          item.description?.toLowerCase().includes(query)
+          item.description?.toLowerCase().includes(query) ||
+          item.genreNames?.some(g => g.toLowerCase().includes(query))
       );
-    }
-
-    // Type filter (for series category)
-    if (activeCategory === 'series' && activeTypeFilter) {
-      result = result.filter((item) => item.type === activeTypeFilter);
     }
 
     // Upload filter
@@ -69,7 +85,7 @@ const Index = () => {
     }
 
     return result;
-  }, [currentItems, searchQuery, activeTypeFilter, activeCategory, uploadFilter, sortMode, uploadedIds]);
+  }, [currentItems, searchQuery, uploadFilter, sortMode, uploadedIds]);
 
   // Infinite scroll observer
   const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
@@ -80,22 +96,20 @@ const Index = () => {
   }, [hasMore, isLoadingMore, loadMore]);
 
   useEffect(() => {
-    const option = {
-      root: null,
-      rootMargin: '400px',
-      threshold: 0,
-    };
+    const option = { root: null, rootMargin: '400px', threshold: 0 };
     const observer = new IntersectionObserver(handleObserver, option);
     if (loadMoreRef.current) observer.observe(loadMoreRef.current);
-    
-    return () => {
-      if (loadMoreRef.current) observer.unobserve(loadMoreRef.current);
-    };
+    return () => { if (loadMoreRef.current) observer.unobserve(loadMoreRef.current); };
   }, [handleObserver]);
+
+  const getTitle = () => {
+    if (activeTypeFilter === 'anime') return 'Animes';
+    if (activeTypeFilter === 'documentary') return 'Documentaires';
+    return activeCategory === 'films' ? 'Films' : 'Séries';
+  };
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <AppHeader
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -105,7 +119,6 @@ const Index = () => {
         uploadedCount={totalUploaded}
       />
 
-      {/* Sidebar */}
       <AppSidebar
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
@@ -118,23 +131,22 @@ const Index = () => {
         stats={stats}
       />
 
-      {/* Main content */}
       <main className="app-main">
         <div className="p-6">
-          {/* Stats bar */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <h2 className="text-xl font-semibold text-foreground">
-                {activeCategory === 'films' ? 'Films' : 'Séries'}
-                {activeTypeFilter && ` • ${activeTypeFilter === 'anime' ? 'Anime' : activeTypeFilter === 'documentary' ? 'Documentaires' : 'Séries TV'}`}
-              </h2>
+              <h2 className="text-xl font-semibold text-foreground">{getTitle()}</h2>
               <span className="text-sm text-muted-foreground">
                 {filteredItems.length.toLocaleString()} résultats
               </span>
             </div>
+            {lastUpdate && (
+              <span className="text-xs text-muted-foreground">
+                MAJ auto: toutes les heures • Dernière: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </div>
 
-          {/* Loading state */}
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
@@ -142,32 +154,18 @@ const Index = () => {
             </div>
           ) : (
             <>
-              <MediaList 
-                items={filteredItems} 
-                isUploaded={isUploaded} 
-                onToggleUpload={toggleUploaded}
-              />
-              
-              {/* Load more trigger */}
+              <MediaList items={filteredItems} isUploaded={isUploaded} onToggleUpload={toggleUploaded} />
               <div ref={loadMoreRef} className="h-20 flex items-center justify-center mt-8">
                 {isLoadingMore && (
                   <div className="flex items-center gap-3 text-muted-foreground">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm">Chargement de plus de médias...</span>
+                    <span className="text-sm">Chargement...</span>
                   </div>
-                )}
-                {!hasMore && filteredItems.length > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    Fin du catalogue • {filteredItems.length.toLocaleString()} médias
-                  </p>
                 )}
               </div>
             </>
           )}
-
-          {error && (
-            <div className="text-center py-4 text-destructive text-sm">{error}</div>
-          )}
+          {error && <div className="text-center py-4 text-destructive text-sm">{error}</div>}
         </div>
       </main>
     </div>

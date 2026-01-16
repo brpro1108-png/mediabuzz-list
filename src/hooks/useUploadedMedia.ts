@@ -5,7 +5,6 @@ const STORAGE_KEY = 'darkiworld-uploaded-media';
 export const useUploadedMedia = () => {
   const [uploadedIds, setUploadedIds] = useState<Set<string>>(new Set());
 
-  // Load from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -18,7 +17,6 @@ export const useUploadedMedia = () => {
     }
   }, []);
 
-  // Save to localStorage whenever uploadedIds changes
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify([...uploadedIds]));
   }, [uploadedIds]);
@@ -35,9 +33,9 @@ export const useUploadedMedia = () => {
     });
   }, []);
 
-  const isUploaded = useCallback((id: string) => {
-    return uploadedIds.has(id);
-  }, [uploadedIds]);
+  const isUploaded = useCallback((id: string) => uploadedIds.has(id), [uploadedIds]);
 
-  return { uploadedIds, toggleUploaded, isUploaded };
+  const uploadedCount = uploadedIds.size;
+
+  return { uploadedIds, toggleUploaded, isUploaded, uploadedCount };
 };
