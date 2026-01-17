@@ -1,6 +1,10 @@
-import { RefreshCw, Search, X, Filter } from 'lucide-react';
+import { useState } from 'react';
+import { RefreshCw, Search, X, Filter, Download, RotateCcw } from 'lucide-react';
 import { SearchDropdown } from './SearchDropdown';
+import { AutoImportDialog } from './AutoImportDialog';
 import { MediaItem, Category } from '@/types/media';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import logo from '@/assets/logo.png';
 
 interface AppHeaderProps {
@@ -37,9 +41,47 @@ export const AppHeader = ({
   isAutoUpdating,
   currentPage,
 }: AppHeaderProps) => {
+  const [showAutoImport, setShowAutoImport] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const progress = totalMedia > 0 ? (uploadedCount / totalMedia) * 100 : 0;
 
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Vous devez être connecté pour synchroniser');
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-tmdb`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast.success(`Synchronisation terminée: ${result.imported} nouveaux médias`);
+        onRefresh();
+      } else {
+        toast.error(result.error || 'Erreur de synchronisation');
+      }
+    } catch (err) {
+      toast.error('Erreur de synchronisation');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
+    <>
     <header className="app-header">
       {/* Logo */}
       <div className="flex items-center gap-3 flex-shrink-0">
@@ -144,6 +186,27 @@ export const AppHeader = ({
           </div>
         </div>
 
+        {/* Import auto button */}
+        <button
+          onClick={() => setShowAutoImport(true)}
+          className="flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors text-sm font-medium"
+          title="Import automatique TMDB"
+        >
+          <Download className="w-4 h-4" />
+          Import auto
+        </button>
+
+        {/* Sync button */}
+        <button
+          onClick={handleSync}
+          disabled={isSyncing}
+          className="flex items-center gap-1.5 px-3 py-2 bg-secondary hover:bg-primary/20 rounded-xl transition-colors text-sm"
+          title="Synchroniser les nouveaux contenus"
+        >
+          <RotateCcw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+          Sync
+        </button>
+
         {/* Refresh */}
         <button
           onClick={onRefresh}
@@ -155,5 +218,12 @@ export const AppHeader = ({
         </button>
       </div>
     </header>
+
+    <AutoImportDialog
+      open={showAutoImport}
+      onOpenChange={setShowAutoImport}
+      onComplete={onRefresh}
+    />
+    </>
   );
 };
