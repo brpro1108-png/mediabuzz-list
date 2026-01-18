@@ -144,6 +144,28 @@ export function useDBMedia() {
       });
 
       if (itemsToDelete.length === 0) {
+        // Still reset import state even if nothing to delete
+        await supabase
+          .from('import_state')
+          .upsert({
+            user_id: user.id,
+            movies_page: 1,
+            series_page: 1,
+            movies_imported: 0,
+            series_imported: 0,
+            movies_skipped: 0,
+            series_skipped: 0,
+            collections_count: 0,
+            current_phase: 'movies',
+            is_importing: false,
+          });
+
+        // Delete all collections
+        await supabase
+          .from('collections')
+          .delete()
+          .eq('user_id', user.id);
+
         return { deleted: 0, error: null };
       }
 
@@ -155,6 +177,28 @@ export function useDBMedia() {
         .in('id', idsToDelete);
 
       if (deleteError) throw deleteError;
+
+      // Also delete all collections (they'll be recreated during import)
+      await supabase
+        .from('collections')
+        .delete()
+        .eq('user_id', user.id);
+
+      // Reset import state so next import starts fresh
+      await supabase
+        .from('import_state')
+        .upsert({
+          user_id: user.id,
+          movies_page: 1,
+          series_page: 1,
+          movies_imported: 0,
+          series_imported: 0,
+          movies_skipped: 0,
+          series_skipped: 0,
+          collections_count: 0,
+          current_phase: 'movies',
+          is_importing: false,
+        });
 
       // Reload media
       await loadMedia();
