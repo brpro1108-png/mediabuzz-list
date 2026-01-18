@@ -93,13 +93,9 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
       const phase = state.currentPhase;
       const page = phase === 'movies' ? state.moviesPage : state.seriesPage;
 
-      const response = await supabase.functions.invoke('import-tmdb', {
-        body: {},
-        headers: { 'Content-Type': 'application/json' },
-      });
+      console.log(`[AutoImport] Fetching ${phase} page ${page}`);
 
-      // Use query params approach
-      const { data, error } = await fetch(
+      const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-tmdb?phase=${phase}&page=${page}`,
         {
           method: 'GET',
@@ -108,12 +104,16 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
             'Content-Type': 'application/json',
           },
         }
-      ).then(res => res.json()).then(data => ({ data, error: null })).catch(error => ({ data: null, error }));
+      );
 
-      if (error || !data?.success) {
-        console.error('Import error:', error || data?.error);
+      const data = await response.json();
+
+      if (!data?.success) {
+        console.error('Import error:', data?.error);
         return;
       }
+
+      console.log(`[AutoImport] Result: imported=${data.imported}, skipped=${data.skipped}, nextPage=${data.nextPage}`);
 
       setState(prev => {
         const newState = { ...prev };
@@ -151,14 +151,14 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
     } catch (err) {
       console.error('Import error:', err);
     }
-  }, [state, isPaused, isComplete, toast, onComplete]);
+  }, [state.currentPhase, state.moviesPage, state.seriesPage, state.moviesImported, state.seriesImported, isPaused, isComplete, toast, onComplete]);
 
   const startImport = () => {
     setState(prev => ({ ...prev, isImporting: true }));
     setIsPaused(false);
     setIsComplete(false);
     
-    // Start import loop
+    // Start import loop - 1 second interval
     intervalRef.current = setInterval(importNextPage, 1000);
     importNextPage(); // First call immediately
   };
@@ -215,6 +215,11 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
     });
     setIsPaused(false);
     setIsComplete(false);
+
+    toast({
+      title: 'Import réinitialisé',
+      description: 'L\'import repartira de zéro',
+    });
   };
 
   useEffect(() => {
@@ -342,7 +347,7 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
               </>
             )}
 
-            <Button onClick={resetImport} variant="outline" size="icon">
+            <Button onClick={resetImport} variant="outline" size="icon" title="Réinitialiser l'import">
               <RotateCcw className="w-4 h-4" />
             </Button>
           </div>
