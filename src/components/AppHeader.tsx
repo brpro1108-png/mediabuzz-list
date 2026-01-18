@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { RefreshCw, Search, X, Filter, Download, RotateCcw } from 'lucide-react';
+import { RefreshCw, Search, X, Filter, Download, RotateCcw, AlertTriangle } from 'lucide-react';
 import { SearchDropdown } from './SearchDropdown';
 import { AutoImportDialog } from './AutoImportDialog';
+import { EmergencyDeleteDialog } from './EmergencyDeleteDialog';
 import { MediaItem, Category } from '@/types/media';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -22,7 +23,7 @@ interface AppHeaderProps {
   searchMode: 'local' | 'tmdb';
   onSearchModeChange: (mode: 'local' | 'tmdb') => void;
   isAutoUpdating?: boolean;
-  currentPage?: number;
+  onEmergencyDelete?: () => Promise<{ deleted: number; error: string | null }>;
 }
 
 export const AppHeader = ({ 
@@ -39,9 +40,10 @@ export const AppHeader = ({
   searchMode,
   onSearchModeChange,
   isAutoUpdating,
-  currentPage,
+  onEmergencyDelete,
 }: AppHeaderProps) => {
   const [showAutoImport, setShowAutoImport] = useState(false);
+  const [showEmergencyDelete, setShowEmergencyDelete] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const progress = totalMedia > 0 ? (uploadedCount / totalMedia) * 100 : 0;
 
@@ -162,18 +164,18 @@ export const AppHeader = ({
         {isAutoUpdating && (
           <div className="flex items-center gap-2 text-xs text-primary">
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-            <span>MAJ...</span>
+            <span>Import...</span>
           </div>
         )}
         
-        {/* Progress indicator */}
+        {/* Stats display */}
         <div className="flex items-center gap-3">
           <div className="text-right">
             <p className="text-sm font-medium text-foreground">
               {uploadedCount.toLocaleString()} / {totalMedia.toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground">
-              {progress.toFixed(1)}% • p.{currentPage || 0}
+              {progress.toFixed(1)}% uploadés
             </p>
           </div>
           <div className="w-24">
@@ -195,6 +197,18 @@ export const AppHeader = ({
           <Download className="w-4 h-4" />
           Import auto
         </button>
+
+        {/* Emergency button */}
+        {onEmergencyDelete && (
+          <button
+            onClick={() => setShowEmergencyDelete(true)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-destructive/20 text-destructive hover:bg-destructive/30 rounded-xl transition-colors text-sm font-medium"
+            title="Supprimer tous les médias non uploadés"
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Urgence
+          </button>
+        )}
 
         {/* Sync button */}
         <button
@@ -224,6 +238,16 @@ export const AppHeader = ({
       onOpenChange={setShowAutoImport}
       onComplete={onRefresh}
     />
+
+    {onEmergencyDelete && (
+      <EmergencyDeleteDialog
+        open={showEmergencyDelete}
+        onOpenChange={setShowEmergencyDelete}
+        onConfirm={onEmergencyDelete}
+        onComplete={onRefresh}
+        nonUploadedCount={totalMedia - uploadedCount}
+      />
+    )}
     </>
   );
 };
