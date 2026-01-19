@@ -1,13 +1,1 @@
 project_id = "pvodntixrxzsnkrjvswj"
-
-[functions.tmdb-api]
-verify_jwt = false
-
-[functions.darkiworld-api]
-verify_jwt = false
-
-[functions.import-tmdb]
-verify_jwt = false
-
-[functions.sync-tmdb]
-verify_jwt = false

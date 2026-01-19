@@ -1,11 +1,6 @@
-import { useState } from 'react';
-import { RefreshCw, Search, X, Filter, Download, RotateCcw, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Search, X, Filter } from 'lucide-react';
 import { SearchDropdown } from './SearchDropdown';
-import { AutoImportDialog } from './AutoImportDialog';
-import { EmergencyDeleteDialog } from './EmergencyDeleteDialog';
 import { MediaItem, Category } from '@/types/media';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 import logo from '@/assets/logo.png';
 
 interface AppHeaderProps {
@@ -23,7 +18,7 @@ interface AppHeaderProps {
   searchMode: 'local' | 'tmdb';
   onSearchModeChange: (mode: 'local' | 'tmdb') => void;
   isAutoUpdating?: boolean;
-  onEmergencyDelete?: () => Promise<{ deleted: number; error: string | null }>;
+  currentPage?: number;
 }
 
 export const AppHeader = ({ 
@@ -40,50 +35,11 @@ export const AppHeader = ({
   searchMode,
   onSearchModeChange,
   isAutoUpdating,
-  onEmergencyDelete,
+  currentPage,
 }: AppHeaderProps) => {
-  const [showAutoImport, setShowAutoImport] = useState(false);
-  const [showEmergencyDelete, setShowEmergencyDelete] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const progress = totalMedia > 0 ? (uploadedCount / totalMedia) * 100 : 0;
 
-  const handleSync = async () => {
-    setIsSyncing(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Vous devez être connecté pour synchroniser');
-        return;
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-tmdb`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        toast.success(`Synchronisation terminée: ${result.imported} nouveaux médias`);
-        onRefresh();
-      } else {
-        toast.error(result.error || 'Erreur de synchronisation');
-      }
-    } catch (err) {
-      toast.error('Erreur de synchronisation');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   return (
-    <>
     <header className="app-header">
       {/* Logo */}
       <div className="flex items-center gap-3 flex-shrink-0">
@@ -164,18 +120,18 @@ export const AppHeader = ({
         {isAutoUpdating && (
           <div className="flex items-center gap-2 text-xs text-primary">
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-            <span>Import...</span>
+            <span>MAJ...</span>
           </div>
         )}
         
-        {/* Stats display */}
+        {/* Progress indicator */}
         <div className="flex items-center gap-3">
           <div className="text-right">
             <p className="text-sm font-medium text-foreground">
               {uploadedCount.toLocaleString()} / {totalMedia.toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground">
-              {progress.toFixed(1)}% uploadés
+              {progress.toFixed(1)}% • p.{currentPage || 0}
             </p>
           </div>
           <div className="w-24">
@@ -188,39 +144,6 @@ export const AppHeader = ({
           </div>
         </div>
 
-        {/* Import auto button */}
-        <button
-          onClick={() => setShowAutoImport(true)}
-          className="flex items-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors text-sm font-medium"
-          title="Import automatique TMDB"
-        >
-          <Download className="w-4 h-4" />
-          Import auto
-        </button>
-
-        {/* Emergency button */}
-        {onEmergencyDelete && (
-          <button
-            onClick={() => setShowEmergencyDelete(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-destructive/20 text-destructive hover:bg-destructive/30 rounded-xl transition-colors text-sm font-medium"
-            title="Supprimer tous les médias non uploadés"
-          >
-            <AlertTriangle className="w-4 h-4" />
-            Urgence
-          </button>
-        )}
-
-        {/* Sync button */}
-        <button
-          onClick={handleSync}
-          disabled={isSyncing}
-          className="flex items-center gap-1.5 px-3 py-2 bg-secondary hover:bg-primary/20 rounded-xl transition-colors text-sm"
-          title="Synchroniser les nouveaux contenus"
-        >
-          <RotateCcw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          Sync
-        </button>
-
         {/* Refresh */}
         <button
           onClick={onRefresh}
@@ -232,22 +155,5 @@ export const AppHeader = ({
         </button>
       </div>
     </header>
-
-    <AutoImportDialog
-      open={showAutoImport}
-      onOpenChange={setShowAutoImport}
-      onComplete={onRefresh}
-    />
-
-    {onEmergencyDelete && (
-      <EmergencyDeleteDialog
-        open={showEmergencyDelete}
-        onOpenChange={setShowEmergencyDelete}
-        onConfirm={onEmergencyDelete}
-        onComplete={onRefresh}
-        nonUploadedCount={totalMedia - uploadedCount}
-      />
-    )}
-    </>
   );
 };

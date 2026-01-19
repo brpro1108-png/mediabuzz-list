@@ -6,7 +6,7 @@ import { SmartCollectionBar } from '@/components/SmartCollectionBar';
 import { SmartCollectionCard } from '@/components/SmartCollectionCard';
 import { MediaPagination } from '@/components/MediaPagination';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
-import { useDBMedia } from '@/hooks/useDBMedia';
+import { useTMDBMedia } from '@/hooks/useTMDBMedia';
 import { Category, MediaItem, ViewFilter, SMART_COLLECTIONS } from '@/types/media';
 import { Loader2, Save, CheckCircle, Cloud } from 'lucide-react';
 import { toast } from 'sonner';
@@ -91,8 +91,7 @@ const Index = () => {
     lastUpdate,
     isAutoUpdating,
     pagesLoaded,
-    deleteNonUploadedMedia,
-  } = useDBMedia();
+  } = useTMDBMedia();
 
   // Reset page when filters change
   useEffect(() => {
@@ -258,7 +257,7 @@ const Index = () => {
         searchMode={searchMode}
         onSearchModeChange={setSearchMode}
         isAutoUpdating={isAutoUpdating}
-        onEmergencyDelete={deleteNonUploadedMedia}
+        currentPage={pagesLoaded}
       />
 
       <AppSidebar
@@ -363,11 +362,9 @@ const Index = () => {
                 </span>
               )}
 
-              {pagesLoaded > 0 && (
-                <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
-                  📊 {pagesLoaded} importés
-                </span>
-              )}
+              <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded">
+                📄 {pagesLoaded} pages
+              </span>
               {lastUpdate && (
                 <span className="text-xs text-muted-foreground">
                   MAJ: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -376,7 +373,7 @@ const Index = () => {
               {isAutoUpdating && (
                 <span className="text-xs text-primary flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Import auto...
+                  Mise à jour...
                 </span>
               )}
             </div>
