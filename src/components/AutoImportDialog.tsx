@@ -44,7 +44,24 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
   
   const [isPaused, setIsPaused] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Refs to avoid stale state inside setInterval
+  const stateRef = useRef(state);
+  const isPausedRef = useRef(isPaused);
+  const isCompleteRef = useRef(isComplete);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  useEffect(() => {
+    isCompleteRef.current = isComplete;
+  }, [isComplete]);
 
   // Load existing import state
   useEffect(() => {
@@ -81,7 +98,9 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
   }, [open]);
 
   const importNextPage = useCallback(async () => {
-    if (isPaused || isComplete) return;
+    if (isPausedRef.current || isCompleteRef.current) return;
+
+    const snapshot = stateRef.current;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -90,34 +109,40 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
         return;
       }
 
-      const phase = state.currentPhase;
-      const page = phase === 'movies' ? state.moviesPage : state.seriesPage;
+      const phase = snapshot.currentPhase;
+      const page = phase === 'movies' ? snapshot.moviesPage : snapshot.seriesPage;
 
-      console.log(`[AutoImport] Fetching ${phase} page ${page}`);
+      console.log(`[AutoImport] Invoking import-tmdb: phase=${phase} page=${page}`);
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-tmdb?phase=${phase}&page=${page}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
+      const { data, error } = await supabase.functions.invoke('import-tmdb', {
+        body: { phase, page },
+      });
+
+      if (error || !data?.success) {
+        console.error('Import error:', error || data?.error);
+        // Stop the loop on hard failure to avoid infinite spam
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
         }
-      );
-
-      const data = await response.json();
-
-      if (!data?.success) {
-        console.error('Import error:', data?.error);
+        setState(prev => ({ ...prev, isImporting: false }));
+        toast({
+          title: 'Import interrompu',
+          description: (error as any)?.message || data?.error || 'Erreur lors de l\'import',
+          variant: 'destructive',
+        });
         return;
       }
 
-      console.log(`[AutoImport] Result: imported=${data.imported}, skipped=${data.skipped}, nextPage=${data.nextPage}`);
+      console.log(`[AutoImport] Result: imported=${data.imported}, skipped=${data.skipped}, nextPage=${data.nextPage}, nextPhase=${data.nextPhase}`);
+
+      // Compute totals for completion toast (avoid stale state)
+      const nextTotalImported =
+        (snapshot.moviesImported + snapshot.seriesImported) + (data.imported || 0);
 
       setState(prev => {
         const newState = { ...prev };
-        
+
         if (data.phase === 'movies') {
           newState.moviesPage = data.nextPage;
           newState.moviesTotalPages = data.totalPages;
@@ -129,7 +154,7 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
           newState.seriesImported = prev.seriesImported + data.imported;
           newState.seriesSkipped = prev.seriesSkipped + data.skipped;
         }
-        
+
         newState.collectionsCount = prev.collectionsCount + data.collectionsAdded;
         newState.currentPhase = data.nextPhase;
         newState.isImporting = !data.isComplete;
@@ -141,39 +166,67 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
         setIsComplete(true);
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
+          intervalRef.current = null;
         }
         toast({
           title: 'Import terminé !',
-          description: `${state.moviesImported + state.seriesImported} médias importés`,
+          description: `${nextTotalImported} médias importés`,
         });
         onComplete();
       }
     } catch (err) {
       console.error('Import error:', err);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      setState(prev => ({ ...prev, isImporting: false }));
+      toast({
+        title: 'Import interrompu',
+        description: err instanceof Error ? err.message : 'Erreur inconnue',
+        variant: 'destructive',
+      });
     }
-  }, [state.currentPhase, state.moviesPage, state.seriesPage, state.moviesImported, state.seriesImported, isPaused, isComplete, toast, onComplete]);
+  }, [toast, onComplete]);
 
   const startImport = () => {
+    // Ensure no duplicate intervals
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
     setState(prev => ({ ...prev, isImporting: true }));
     setIsPaused(false);
     setIsComplete(false);
-    
+
     // Start import loop - 1 second interval
-    intervalRef.current = setInterval(importNextPage, 1000);
-    importNextPage(); // First call immediately
+    intervalRef.current = setInterval(() => {
+      void importNextPage();
+    }, 1000);
+    void importNextPage(); // First call immediately
   };
 
   const pauseImport = () => {
     setIsPaused(true);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
   };
 
   const resumeImport = () => {
+    // Ensure no duplicate intervals
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
     setIsPaused(false);
-    intervalRef.current = setInterval(importNextPage, 1000);
-    importNextPage();
+    intervalRef.current = setInterval(() => {
+      void importNextPage();
+    }, 1000);
+    void importNextPage();
   };
 
   const resetImport = async () => {

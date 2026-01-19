@@ -103,8 +103,28 @@ Deno.serve(async (req) => {
     }
 
     const url = new URL(req.url);
-    const phase = url.searchParams.get('phase') || 'movies';
-    const page = parseInt(url.searchParams.get('page') || '1');
+
+    // Allow both query params (GET) and JSON body (POST via supabase.functions.invoke)
+    let phase = url.searchParams.get('phase') || 'movies';
+    let page = parseInt(url.searchParams.get('page') || '1');
+
+    if (req.method !== 'GET') {
+      try {
+        const body = await req.json();
+        if (body?.phase) phase = String(body.phase);
+        if (body?.page) page = parseInt(String(body.page));
+      } catch {
+        // ignore invalid JSON
+      }
+    }
+
+    if (phase !== 'movies' && phase !== 'series') {
+      phase = 'movies';
+    }
+
+    if (!Number.isFinite(page) || page < 1) {
+      page = 1;
+    }
 
     console.log(`[import-tmdb] User ${user.id} importing ${phase} page ${page}`);
 
