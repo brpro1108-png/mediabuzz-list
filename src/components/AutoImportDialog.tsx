@@ -45,6 +45,7 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
   const [isPaused, setIsPaused] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inFlightRef = useRef(false);
 
   // Refs to avoid stale state inside setInterval
   const stateRef = useRef(state);
@@ -69,13 +70,32 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('import_state')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
 
+      if (error) {
+        console.error('Failed to load import state:', error);
+        return;
+      }
+
       if (data) {
+        const derivedIsComplete = Boolean(data.last_sync_at);
+        const hasProgress =
+          (data.movies_page || 1) > 1 ||
+          (data.series_page || 1) > 1 ||
+          (data.movies_imported || 0) > 0 ||
+          (data.series_imported || 0) > 0 ||
+          (data.movies_skipped || 0) > 0 ||
+          (data.series_skipped || 0) > 0;
+
+        const derivedIsPaused = !derivedIsComplete && !data.is_importing && hasProgress;
+
+        setIsComplete(derivedIsComplete);
+        setIsPaused(derivedIsPaused);
+
         setState({
           moviesPage: data.movies_page || 1,
           seriesPage: data.series_page || 1,
@@ -87,19 +107,22 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
           seriesSkipped: data.series_skipped || 0,
           collectionsCount: data.collections_count || 0,
           currentPhase: (data.current_phase as 'movies' | 'series') || 'movies',
-          isImporting: data.is_importing || false,
+          // On garde le mode “import started” si c’est en pause (pour afficher “Reprendre”)
+          isImporting: Boolean(data.is_importing || derivedIsPaused),
         });
       }
     };
 
     if (open) {
-      loadState();
+      void loadState();
     }
   }, [open]);
 
   const importNextPage = useCallback(async () => {
     if (isPausedRef.current || isCompleteRef.current) return;
+    if (inFlightRef.current) return;
 
+    inFlightRef.current = true;
     const snapshot = stateRef.current;
 
     try {
@@ -186,6 +209,8 @@ export const AutoImportDialog = ({ open, onOpenChange, onComplete }: AutoImportD
         description: err instanceof Error ? err.message : 'Erreur inconnue',
         variant: 'destructive',
       });
+    } finally {
+      inFlightRef.current = false;
     }
   }, [toast, onComplete]);
 
