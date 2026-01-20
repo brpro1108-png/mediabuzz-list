@@ -6,7 +6,7 @@ import { SmartCollectionBar } from '@/components/SmartCollectionBar';
 import { SmartCollectionCard } from '@/components/SmartCollectionCard';
 import { MediaPagination } from '@/components/MediaPagination';
 import { useUploadedMedia } from '@/hooks/useUploadedMedia';
-import { useTMDBMedia } from '@/hooks/useTMDBMedia';
+import { useTMDBImport } from '@/hooks/useTMDBImport';
 import { Category, MediaItem, ViewFilter, SMART_COLLECTIONS } from '@/types/media';
 import { Loader2, Save, CheckCircle, Cloud } from 'lucide-react';
 import { toast } from 'sonner';
@@ -89,9 +89,10 @@ const Index = () => {
     refetch, 
     searchTMDB,
     lastUpdate,
-    isAutoUpdating,
+    importState,
+    toggleImport,
     pagesLoaded,
-  } = useTMDBMedia();
+  } = useTMDBImport();
 
   // Reset page when filters change
   useEffect(() => {
@@ -256,8 +257,9 @@ const Index = () => {
         onLocalSearchChange={setLocalSearchQuery}
         searchMode={searchMode}
         onSearchModeChange={setSearchMode}
-        isAutoUpdating={isAutoUpdating}
-        currentPage={pagesLoaded}
+        importStatus={importState.status}
+        onToggleImport={toggleImport}
+        pagesLoaded={pagesLoaded}
       />
 
       <AppSidebar
@@ -370,10 +372,10 @@ const Index = () => {
                   MAJ: {lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
               )}
-              {isAutoUpdating && (
-                <span className="text-xs text-primary flex items-center gap-1">
+              {importState.status === 'running' && (
+                <span className="text-xs text-green-400 flex items-center gap-1">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Mise à jour...
+                  Import en cours...
                 </span>
               )}
             </div>
