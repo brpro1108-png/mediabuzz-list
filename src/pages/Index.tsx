@@ -92,6 +92,7 @@ const Index = () => {
     importState,
     toggleImport,
     pagesLoaded,
+    isLocked,
   } = useTMDBImport();
 
   // Reset page when filters change
@@ -260,6 +261,7 @@ const Index = () => {
         importStatus={importState.status}
         onToggleImport={toggleImport}
         pagesLoaded={pagesLoaded}
+        isLocked={isLocked}
       />
 
       <AppSidebar

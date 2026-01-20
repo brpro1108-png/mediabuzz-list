@@ -1,4 +1,4 @@
-import { Play, Pause, Loader2 } from 'lucide-react';
+import { Play, Pause, Loader2, Lock } from 'lucide-react';
 import { ImportStatus } from '@/hooks/useTMDBImport';
 
 interface ImportButtonProps {
@@ -7,6 +7,7 @@ interface ImportButtonProps {
   pagesLoaded: number;
   totalImported?: number;
   disabled?: boolean;
+  isLocked?: boolean;
 }
 
 export const ImportButton = ({ 
@@ -14,9 +15,27 @@ export const ImportButton = ({
   onToggle, 
   pagesLoaded, 
   totalImported = 0,
-  disabled = false 
+  disabled = false,
+  isLocked = false,
 }: ImportButtonProps) => {
   const isRunning = status === 'running';
+  
+  // If locked by another tab
+  if (isLocked) {
+    return (
+      <div
+        className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
+          bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 cursor-not-allowed"
+        title="Import en cours dans un autre onglet"
+      >
+        <Lock className="w-4 h-4" />
+        <span>Verrouillé</span>
+        <span className="ml-1 px-2 py-0.5 rounded text-xs font-bold bg-yellow-500/30">
+          Autre onglet
+        </span>
+      </div>
+    );
+  }
   
   return (
     <button

@@ -60,6 +60,16 @@ const DEFAULT_IMPORT_STATE: ImportState = {
   lastSavedAt: null,
 };
 
+// Multi-tab lock constants
+const LOCK_KEY = 'tmdb-import-lock';
+const LOCK_HEARTBEAT_INTERVAL = 2000; // 2 seconds
+const LOCK_TIMEOUT = 5000; // 5 seconds - if no heartbeat, lock is stale
+
+interface LockData {
+  tabId: string;
+  timestamp: number;
+}
+
 export function useTMDBImport() {
   const { user } = useAuth();
   const [movies, setMovies] = useState<MediaItem[]>([]);
@@ -73,19 +83,97 @@ export function useTMDBImport() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [isLocked, setIsLocked] = useState(false); // True if another tab has the lock
   
   // Refs for tracking
   const seenIds = useRef(new Set<string>());
   const importIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isImportingRef = useRef(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lockIdRef = useRef<string | null>(null);
+  const tabIdRef = useRef<string>(`${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const lastClickRef = useRef<number>(0);
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Generate unique lock ID for this tab
-  useEffect(() => {
-    lockIdRef.current = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // Check if another tab has the lock
+  const checkLock = useCallback((): boolean => {
+    try {
+      const lockDataStr = localStorage.getItem(LOCK_KEY);
+      if (!lockDataStr) return false;
+      
+      const lockData: LockData = JSON.parse(lockDataStr);
+      const now = Date.now();
+      
+      // If lock is from this tab, it's not locked
+      if (lockData.tabId === tabIdRef.current) return false;
+      
+      // If lock is stale (no heartbeat), it's not locked
+      if (now - lockData.timestamp > LOCK_TIMEOUT) return false;
+      
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
+
+  // Acquire the lock
+  const acquireLock = useCallback(() => {
+    const lockData: LockData = {
+      tabId: tabIdRef.current,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(LOCK_KEY, JSON.stringify(lockData));
+  }, []);
+
+  // Release the lock
+  const releaseLock = useCallback(() => {
+    try {
+      const lockDataStr = localStorage.getItem(LOCK_KEY);
+      if (lockDataStr) {
+        const lockData: LockData = JSON.parse(lockDataStr);
+        if (lockData.tabId === tabIdRef.current) {
+          localStorage.removeItem(LOCK_KEY);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }, []);
+
+  // Heartbeat to maintain lock
+  const startHeartbeat = useCallback(() => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+    }
+    
+    heartbeatIntervalRef.current = setInterval(() => {
+      acquireLock(); // Refresh timestamp
+    }, LOCK_HEARTBEAT_INTERVAL);
+  }, [acquireLock]);
+
+  const stopHeartbeat = useCallback(() => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+    releaseLock();
+  }, [releaseLock]);
+
+  // Check lock status periodically
+  useEffect(() => {
+    const checkInterval = setInterval(() => {
+      const locked = checkLock();
+      setIsLocked(locked);
+    }, 1000);
+
+    return () => clearInterval(checkInterval);
+  }, [checkLock]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopHeartbeat();
+    };
+  }, [stopHeartbeat]);
 
   // Save state to database
   const saveStateToDatabase = useCallback(async (state: ImportState) => {
@@ -307,7 +395,11 @@ export function useTMDBImport() {
 
   // Start/Stop import interval
   useEffect(() => {
-    if (importState.status === 'running') {
+    if (importState.status === 'running' && !isLocked) {
+      // Acquire lock and start heartbeat
+      acquireLock();
+      startHeartbeat();
+      
       // Clear any existing interval
       if (importIntervalRef.current) {
         clearInterval(importIntervalRef.current);
@@ -319,10 +411,15 @@ export function useTMDBImport() {
       }, 1000);
       
     } else {
-      // Stop interval when paused
+      // Stop interval when paused or locked
       if (importIntervalRef.current) {
         clearInterval(importIntervalRef.current);
         importIntervalRef.current = null;
+      }
+      
+      // Only stop heartbeat if we're pausing (not if locked by another tab)
+      if (importState.status === 'paused') {
+        stopHeartbeat();
       }
     }
 
@@ -331,7 +428,7 @@ export function useTMDBImport() {
         clearInterval(importIntervalRef.current);
       }
     };
-  }, [importState.status, performImportStep]);
+  }, [importState.status, isLocked, performImportStep, acquireLock, startHeartbeat, stopHeartbeat]);
 
   // Toggle import (Start/Pause)
   const toggleImport = useCallback(() => {
@@ -339,6 +436,12 @@ export function useTMDBImport() {
     const now = Date.now();
     if (now - lastClickRef.current < 500) return;
     lastClickRef.current = now;
+
+    // Check if another tab has the lock
+    if (checkLock()) {
+      setError('Import déjà en cours dans un autre onglet');
+      return;
+    }
 
     setImportState(prev => {
       const newStatus: ImportStatus = prev.status === 'running' ? 'paused' : 'running';
@@ -349,7 +452,7 @@ export function useTMDBImport() {
       
       return newState;
     });
-  }, [saveStateToDatabase]);
+  }, [saveStateToDatabase, checkLock]);
 
   // Real-time TMDB search
   const searchTMDB = useCallback(async (query: string, category: 'movies' | 'series'): Promise<MediaItem[]> => {
@@ -480,5 +583,6 @@ export function useTMDBImport() {
     importState,
     toggleImport,
     pagesLoaded: importState.moviesPage,
+    isLocked,
   };
 }
