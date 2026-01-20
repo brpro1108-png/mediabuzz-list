@@ -23,6 +23,7 @@ interface AppHeaderProps {
   importStatus: ImportStatus;
   onToggleImport: () => void;
   pagesLoaded: number;
+  isLocked: boolean;
 }
 
 export const AppHeader = ({ 
@@ -41,6 +42,7 @@ export const AppHeader = ({
   importStatus,
   onToggleImport,
   pagesLoaded,
+  isLocked,
 }: AppHeaderProps) => {
   const progress = totalMedia > 0 ? (uploadedCount / totalMedia) * 100 : 0;
 
@@ -126,6 +128,7 @@ export const AppHeader = ({
           status={importStatus}
           onToggle={onToggleImport}
           pagesLoaded={pagesLoaded}
+          isLocked={isLocked}
         />
         
         {/* Progress indicator */}
