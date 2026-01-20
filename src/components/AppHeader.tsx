@@ -1,8 +1,6 @@
 import { RefreshCw, Search, X, Filter } from 'lucide-react';
 import { SearchDropdown } from './SearchDropdown';
-import { ImportButton } from './ImportButton';
 import { MediaItem, Category } from '@/types/media';
-import { ImportStatus } from '@/hooks/useTMDBImport';
 import logo from '@/assets/logo.png';
 
 interface AppHeaderProps {
@@ -19,11 +17,8 @@ interface AppHeaderProps {
   onLocalSearchChange: (query: string) => void;
   searchMode: 'local' | 'tmdb';
   onSearchModeChange: (mode: 'local' | 'tmdb') => void;
-  // Import controls
-  importStatus: ImportStatus;
-  onToggleImport: () => void;
-  pagesLoaded: number;
-  isLocked: boolean;
+  isAutoUpdating?: boolean;
+  currentPage?: number;
 }
 
 export const AppHeader = ({ 
@@ -39,10 +34,8 @@ export const AppHeader = ({
   onLocalSearchChange,
   searchMode,
   onSearchModeChange,
-  importStatus,
-  onToggleImport,
-  pagesLoaded,
-  isLocked,
+  isAutoUpdating,
+  currentPage,
 }: AppHeaderProps) => {
   const progress = totalMedia > 0 ? (uploadedCount / totalMedia) * 100 : 0;
 
@@ -123,13 +116,13 @@ export const AppHeader = ({
 
       {/* Progress + Actions */}
       <div className="flex items-center gap-4 flex-shrink-0">
-        {/* Import button */}
-        <ImportButton
-          status={importStatus}
-          onToggle={onToggleImport}
-          pagesLoaded={pagesLoaded}
-          isLocked={isLocked}
-        />
+        {/* Auto-update indicator */}
+        {isAutoUpdating && (
+          <div className="flex items-center gap-2 text-xs text-primary">
+            <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+            <span>MAJ...</span>
+          </div>
+        )}
         
         {/* Progress indicator */}
         <div className="flex items-center gap-3">
@@ -138,7 +131,7 @@ export const AppHeader = ({
               {uploadedCount.toLocaleString()} / {totalMedia.toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground">
-              {progress.toFixed(1)}%
+              {progress.toFixed(1)}% • p.{currentPage || 0}
             </p>
           </div>
           <div className="w-24">
