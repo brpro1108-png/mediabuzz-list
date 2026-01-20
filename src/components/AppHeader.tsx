@@ -1,6 +1,8 @@
 import { RefreshCw, Search, X, Filter } from 'lucide-react';
 import { SearchDropdown } from './SearchDropdown';
+import { ImportButton } from './ImportButton';
 import { MediaItem, Category } from '@/types/media';
+import { ImportStatus } from '@/hooks/useTMDBImport';
 import logo from '@/assets/logo.png';
 
 interface AppHeaderProps {
@@ -17,8 +19,10 @@ interface AppHeaderProps {
   onLocalSearchChange: (query: string) => void;
   searchMode: 'local' | 'tmdb';
   onSearchModeChange: (mode: 'local' | 'tmdb') => void;
-  isAutoUpdating?: boolean;
-  currentPage?: number;
+  // Import controls
+  importStatus: ImportStatus;
+  onToggleImport: () => void;
+  pagesLoaded: number;
 }
 
 export const AppHeader = ({ 
@@ -34,8 +38,9 @@ export const AppHeader = ({
   onLocalSearchChange,
   searchMode,
   onSearchModeChange,
-  isAutoUpdating,
-  currentPage,
+  importStatus,
+  onToggleImport,
+  pagesLoaded,
 }: AppHeaderProps) => {
   const progress = totalMedia > 0 ? (uploadedCount / totalMedia) * 100 : 0;
 
@@ -116,13 +121,12 @@ export const AppHeader = ({
 
       {/* Progress + Actions */}
       <div className="flex items-center gap-4 flex-shrink-0">
-        {/* Auto-update indicator */}
-        {isAutoUpdating && (
-          <div className="flex items-center gap-2 text-xs text-primary">
-            <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
-            <span>MAJ...</span>
-          </div>
-        )}
+        {/* Import button */}
+        <ImportButton
+          status={importStatus}
+          onToggle={onToggleImport}
+          pagesLoaded={pagesLoaded}
+        />
         
         {/* Progress indicator */}
         <div className="flex items-center gap-3">
@@ -131,7 +135,7 @@ export const AppHeader = ({
               {uploadedCount.toLocaleString()} / {totalMedia.toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground">
-              {progress.toFixed(1)}% • p.{currentPage || 0}
+              {progress.toFixed(1)}%
             </p>
           </div>
           <div className="w-24">
